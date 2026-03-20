@@ -17,9 +17,13 @@ const defaultProfile: UserProfile = {
     devProcess: 1,
   },
   hasCompletedOnboarding: false,
-  currentSystemDate: new Date("2026-03-15").toISOString(),
-  strengths: [],
-  weaknesses: [],
+  currentSystemDate: new Date("2026-03-21").toISOString(),
+  evaluation: {
+    summary: "",
+    strengths: [],
+    areasForImprovement: [],
+    recommendedFocus: ""
+  }
 };
 
 export function useStore() {
@@ -34,12 +38,11 @@ export function useStore() {
     const savedProfile = localStorage.getItem("egs_profile");
     if (savedProfile) {
       const parsed = JSON.parse(savedProfile);
-      parsed.currentSystemDate = new Date("2026-03-15").toISOString();
-      if (!parsed.strengths) parsed.strengths = [];
-      if (!parsed.weaknesses) parsed.weaknesses = [];
+      parsed.currentSystemDate = new Date("2026-03-21").toISOString();
+      if (!parsed.evaluation) parsed.evaluation = defaultProfile.evaluation;
       setProfile(parsed);
     } else {
-      setProfile(p => ({...p, currentSystemDate: new Date("2026-03-15").toISOString()}));
+      setProfile(p => ({...p, currentSystemDate: new Date("2026-03-21").toISOString()}));
     }
 
     const savedRoadmap = localStorage.getItem("egs_roadmap");
@@ -90,16 +93,11 @@ export function useStore() {
     setChallenges(prev => {
       const next = prev.map(c => {
         if (c.id === challengeId) {
-          const currentCompleted = c.completedCriteria || new Array(c.acceptanceCriteria.length).fill(false);
-          const newCompleted = [...currentCompleted];
-          criteriaIndices.forEach(idx => {
-            if (idx >= 0 && idx < newCompleted.length) {
-              newCompleted[idx] = true;
-            }
-          });
+          const completedCriteria = { ...(c.completedCriteria || {}) };
+          criteriaIndices.forEach(idx => { completedCriteria[idx] = true; });
           
-          const allMet = newCompleted.every(Boolean) && newCompleted.length === c.acceptanceCriteria.length;
-          return { ...c, completedCriteria: newCompleted, completed: allMet };
+          const allMet = c.acceptanceCriteria.every((_, idx) => completedCriteria[idx]);
+          return { ...c, completedCriteria, completed: allMet };
         }
         return c;
       });
@@ -114,15 +112,6 @@ export function useStore() {
       localStorage.setItem("egs_review_history", JSON.stringify(next));
       return next;
     });
-  };
-
-  const updateUserProfile = (detectedWeaknesses: string[], detectedStrengths: string[]) => {
-    const next = {
-      ...profile,
-      weaknesses: Array.from(new Set([...(profile.weaknesses || []), ...detectedWeaknesses])),
-      strengths: Array.from(new Set([...(profile.strengths || []), ...detectedStrengths]))
-    };
-    saveProfile(next);
   };
 
   const computedSkills = { ...profile.skills };
@@ -152,7 +141,6 @@ export function useStore() {
     resetAll,
     completeCriteria,
     saveReviewHistory,
-    updateUserProfile,
     reviewHistory,
     computedSkills,
     totalGainedPoints

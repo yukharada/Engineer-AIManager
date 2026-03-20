@@ -4,11 +4,11 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import MobileNav from "@/components/MobileNav";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Engineering Manager",
-  description: "AI-powered engineering growth management system",
+  title: "AI Boss App | Engineering Growth System",
+  description: "AI-driven professional development for engineers",
 };
 
 export default function RootLayout({
@@ -18,14 +18,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className={`${inter.variable} antialiased selection:bg-indigo-500/30`}>
-        <div className="flex w-full min-h-screen">
-          <Navigation />
-          <main className="flex-1 md:pl-64 min-h-screen flex flex-col pt-8 px-4 sm:px-6 lg:px-12 pb-24 md:pb-12 w-full max-w-7xl mx-auto overflow-x-hidden">
+      <body className={`${inter.className} bg-[#0a0a0f] text-slate-200 overflow-x-hidden`}>
+        <Navigation />
+        <main className="
+          min-h-screen 
+          md:ml-64 
+          px-4 sm:px-6 md:px-8 lg:px-12 
+          py-8 md:py-12 
+          pb-24 md:pb-12
+          transition-all duration-300
+        ">
+          <div className="max-w-7xl mx-auto">
             {children}
-          </main>
-          <MobileNav />
-        </div>
+          </div>
+        </main>
+        <MobileNav />
       </body>
     </html>
   );

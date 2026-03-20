@@ -5,8 +5,12 @@ export interface UserProfile {
   skills: SkillScores;
   hasCompletedOnboarding: boolean;
   currentSystemDate: string;
-  strengths?: string[];
-  weaknesses?: string[];
+  evaluation?: {
+    summary: string;
+    strengths: string[];
+    areasForImprovement: string[];
+    recommendedFocus: string;
+  };
 }
 
 export interface SkillScores {
@@ -31,7 +35,7 @@ export interface Challenge {
   title: string;
   description: string;
   acceptanceCriteria: string[];
-  completedCriteria?: boolean[];
+  completedCriteria?: Record<number, boolean>;
   gainedSkills?: { category: keyof SkillScores; points: number }[];
   difficulty: "Beginner" | "Intermediate" | "Advanced";
   completed: boolean;
@@ -70,9 +74,8 @@ export interface ReviewHistoryItem {
   id: string;
   taskId: string;
   acceptanceCriteria: string; // The title of the PR/criteria
-  code: string;
   result: ClaudeReviewResult; // This matches the user's ReviewResult interface
-  timestamp: string | Date;
+  timestamp: string;
 }
 
 export interface MonthlyReport {

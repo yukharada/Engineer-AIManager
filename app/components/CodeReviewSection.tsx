@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useStore } from '@/lib/store';
 import { Radar } from 'react-chartjs-2';
 import { 
   Chart as ChartJS, 
@@ -11,40 +12,46 @@ import {
   Tooltip, 
   Legend 
 } from 'chart.js';
-import { CheckCircle, AlertCircle, Loader2, Target, HelpCircle, Sparkles, TrendingUp, Github, FileText, Code2 } from 'lucide-react';
-import { useStore } from '@/lib/store';
-import { Challenge, ClaudeReviewResult as ReviewResult, ReviewHistoryItem as Review } from '@/lib/types';
+import { 
+  Search, 
+  Filter, 
+  Terminal, 
+  CheckCircle2, 
+  AlertCircle, 
+  Zap, 
+  ChevronRight, 
+  Loader2,
+  GitPullRequest,
+  Globe,
+  FileCode,
+  Target,
+  Activity
+} from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
-interface CodeReviewSectionProps {
-  currentTask: Challenge | null;
-}
+export default function CodeReviewSection() {
+  const searchParams = useSearchParams();
+  const challengeId = searchParams.get('challengeId');
+  const targetIndicesStr = searchParams.get('indices');
+  const targetIndices = targetIndicesStr ? targetIndicesStr.split(',').map(Number) : [];
 
-export default function CodeReviewSection({ 
-  currentTask
-}: CodeReviewSectionProps) {
-  const { profile, saveReviewHistory, updateUserProfile, completeCriteria } = useStore();
+  const { challenges, profile, saveReviewHistory, saveChallenges } = useStore();
   const [activeTab, setActiveTab] = useState<'manual' | 'github'>('manual');
-  const [selectedPR, setSelectedPR] = useState('');
   const [code, setCode] = useState('');
   const [prUrl, setPrUrl] = useState('');
-  const [loading, setLoading] = useState(false);
   const [isFetchingPr, setIsFetchingPr] = useState(false);
-  const [fetchedFiles, setFetchedFiles] = useState<any[]>([]);
-  const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
+  const [prError, setPrError] = useState('');
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewResult, setReviewResult] = useState<any>(null);
 
-  if (!currentTask) {
-    return (
-      <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700 rounded-2xl p-8 text-center">
-        <p className="text-gray-400">まず課題を選択してください</p>
-      </div>
-    );
-  }
+  const selectedChallenge = challenges.find(c => c.id === challengeId) || challenges[0];
 
   const handleFetchPr = async () => {
     if (!prUrl) return;
     setIsFetchingPr(true);
+    setPrError('');
     try {
       const res = await fetch('/api/github/fetch-pr', {
         method: 'POST',
@@ -52,355 +59,283 @@ export default function CodeReviewSection({
         body: JSON.stringify({ prUrl }),
       });
       const data = await res.json();
-      if (data.error) {
-        alert(data.error);
-      } else {
-        setCode(data.code);
-        setFetchedFiles(data.files);
-      }
-    } catch (e) {
-      console.error(e);
-      alert('PRの取得に失敗しました');
+      if (data.error) throw new Error(data.error);
+      setCode(data.code);
+    } catch (err: any) {
+      setPrError(err.message || 'PRの取得に失敗しました');
     } finally {
       setIsFetchingPr(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!selectedPR || !code) return;
-
-    setLoading(true);
-    setReviewResult(null);
-
+  const handleReview = async () => {
+    if (!code || !profile) return;
+    setIsReviewing(true);
     try {
-      // Find the index of the selected criteria for auto-completion later
-      const criteriaIndex = currentTask.acceptanceCriteria.indexOf(selectedPR);
-
-      const response = await fetch('/api/review', {
+      const res = await fetch('/api/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          acceptanceCriteria: { title: selectedPR },
-          userProfile: {
-            skills: profile.skills,
-            weaknesses: profile.weaknesses || [],
-            strengths: profile.strengths || []
-          },
-          taskContext: {
-            learningGoal: currentTask.description
-          }
-        })
+        body: JSON.stringify({ 
+          code, 
+          acceptanceCriteria: selectedChallenge?.acceptanceCriteria, 
+          userProfile: profile,
+          taskContext: selectedChallenge,
+          targetCriteriaIndices: targetIndices
+        }),
+      });
+      const data = await res.json();
+      setReviewResult(data);
+      
+      // Save review history
+      saveReviewHistory({
+        id: Date.now().toString(),
+        taskId: selectedChallenge?.id || 'manual',
+        acceptanceCriteria: targetIndices.length > 0 
+          ? targetIndices.map(i => selectedChallenge.acceptanceCriteria[i]).join(', ')
+          : (selectedChallenge?.title || 'General Review'),
+        result: data,
+        timestamp: new Date().toISOString()
       });
 
-      const result = await response.json();
-      
-      if (result.error) {
-        alert('レビューに失敗しました: ' + result.error);
-        return;
+      // Update actual challenge status if approved
+      if (data.approved && selectedChallenge) {
+        const updatedChallenges = challenges.map(c => {
+          if (c.id === selectedChallenge.id) {
+            const completedCriteria = { ...(c.completedCriteria || {}) };
+            if (targetIndices.length > 0) {
+              targetIndices.forEach(idx => { completedCriteria[idx] = true; });
+            } else {
+              c.acceptanceCriteria.forEach((_, idx) => { completedCriteria[idx] = true; });
+            }
+            
+            const allDone = c.acceptanceCriteria.every((_, idx) => completedCriteria[idx]);
+            return { ...c, completedCriteria, completed: allDone };
+          }
+          return c;
+        });
+        saveChallenges(updatedChallenges);
       }
-
-      setReviewResult(result);
-
-      // レビュー履歴を保存
-      const review: Review = {
-        id: Date.now().toString(),
-        taskId: currentTask.id,
-        acceptanceCriteria: selectedPR,
-        code,
-        result,
-        timestamp: new Date()
-      };
-
-      saveReviewHistory(review);
-
-      // 弱点・強みを集計してプロフィール更新
-      updateUserProfile(result.detectedWeaknesses, result.detectedStrengths);
-
-      // Approvedなら自動的に完了状態にする
-      if (result.status === 'Approved' && criteriaIndex !== -1) {
-        completeCriteria(currentTask.id, [criteriaIndex]);
-      }
-
-    } catch (error) {
-      console.error('Review error:', error);
-      alert('レビューに失敗しました');
+    } catch (e) {
+      console.error(e);
     } finally {
-      setLoading(false);
+      setIsReviewing(false);
     }
   };
 
-  const radarData = reviewResult ? {
-    labels: ['設計', '命名', 'エラーハンドリング', 'テスト', 'パフォーマンス'],
-    datasets: [{
-      label: 'スコア',
-      data: [
-        reviewResult.scores.design,
-        reviewResult.scores.naming,
-        reviewResult.scores.errorHandling,
-        reviewResult.scores.testing,
-        reviewResult.scores.performance
-      ],
-      backgroundColor: 'rgba(139, 92, 246, 0.2)',
-      borderColor: 'rgba(139, 92, 246, 1)',
-      borderWidth: 2,
-      pointBackgroundColor: 'rgba(139, 92, 246, 1)',
-      pointBorderColor: '#fff',
-      pointHoverBackgroundColor: '#fff',
-      pointHoverBorderColor: 'rgba(139, 92, 246, 1)'
-    }]
-  } : null;
-
-  const radarOptions = {
-    scales: {
-      r: {
-        min: 0,
-        max: 10,
-        ticks: { stepSize: 2, color: '#9CA3AF', display: false },
-        grid: { color: 'rgba(255, 255, 255, 0.1)' },
-        pointLabels: { color: '#D1D5DB', font: { size: 11 } }
-      }
-    },
-    plugins: {
-      legend: { display: false }
-    }
-  };
+  const radarData = useMemo(() => {
+    if (!reviewResult) return null;
+    return {
+      labels: ["設計", "命名", "パフォーマンス", "セキュリティ", "テスト"],
+      datasets: [
+        {
+          label: "今回の評点",
+          data: [
+            reviewResult.scores.design,
+            reviewResult.scores.naming,
+            reviewResult.scores.performance,
+            reviewResult.scores.security,
+            reviewResult.scores.testing
+          ],
+          backgroundColor: "rgba(99, 102, 241, 0.2)",
+          borderColor: "rgba(99, 102, 241, 1)",
+          pointBackgroundColor: "rgba(99, 102, 241, 1)",
+        }
+      ]
+    };
+  }, [reviewResult]);
 
   return (
-    <div className="flex flex-col gap-6 w-full overflow-hidden">
-      <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-4 sm:p-8 shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-          <Sparkles className="text-purple-400" size={28} />
-          <span className="bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-            Gemini AI コードレビュー
-          </span>
-        </h2>
-
-        {/* 課題名表示 */}
-        <div className="mb-6 p-4 bg-gray-700/30 rounded-xl border border-white/5">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">現在の課題</p>
-          <p className="font-bold text-lg text-slate-200">{currentTask.title}</p>
+    <div className="w-full flex flex-col gap-6 sm:gap-10 animate-fade-in pb-12">
+      {/* Target Selector Card */}
+      <div className="glass-card p-5 sm:p-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between border-indigo-500/20">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-400">
+             <Target size={14} /> Review Target
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight">{selectedChallenge?.title || "General Code Review"}</h2>
+          <p className="text-xs sm:text-sm text-slate-500 font-bold italic line-clamp-1">{selectedChallenge?.description}</p>
         </div>
-
-        {/* PR選択 */}
-        <div className="mb-6">
-          <label className="block text-sm font-bold text-gray-400 mb-2 flex items-center gap-2">
-            <Target size={16} className="text-indigo-400" /> 受け入れ条件（PR）を選択
-          </label>
-          <select 
-            value={selectedPR}
-            onChange={(e) => setSelectedPR(e.target.value)}
-            className="w-full p-4 bg-black/40 border border-white/10 rounded-xl focus:ring-2 focus:ring-purple-500/50 outline-none transition text-slate-200"
-          >
-            <option value="">-- 指定するPRを選択してください --</option>
-            {currentTask.acceptanceCriteria.map((ac, idx) => {
-               const isAlreadyComplete = currentTask.completedCriteria?.[idx];
-               return (
-                <option key={idx} value={ac} disabled={isAlreadyComplete}>
-                  {ac} {isAlreadyComplete ? ' (完了済み)' : ''}
-                </option>
-              );
-            })}
-          </select>
+        <div className="flex flex-col gap-3 min-w-[200px]">
+           <div className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-right px-1">Scope</div>
+           <div className="bg-black/40 border border-white/5 rounded-xl p-3 flex items-center justify-between group">
+              <span className="text-sm font-bold text-slate-300">
+                {targetIndices.length > 0 ? `${targetIndices.length}項目のPRレビュー` : "全ての課題を一括"}
+              </span>
+              <ChevronRight size={16} className="text-slate-700 group-hover:text-indigo-400 transition-all" />
+           </div>
         </div>
+      </div>
 
-        {/* タブ切り替え */}
-        <div className="flex bg-black/40 p-1 rounded-xl mb-6 border border-white/5">
-          <button
-            onClick={() => setActiveTab('manual')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'manual' ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            <Code2 size={18} />
-            コード貼り付け
-          </button>
-          <button
-            onClick={() => setActiveTab('github')}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              activeTab === 'github' ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" : "text-slate-500 hover:text-slate-300"
-            }`}
-          >
-            <Github size={18} />
-            GitHub PR
-          </button>
-        </div>
-
-        {activeTab === 'github' ? (
-          <div className="mb-6 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-400 mb-2 flex items-center gap-2">
-                <Github size={16} className="text-slate-400" /> Pull Request URL
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={prUrl}
-                  onChange={(e) => setPrUrl(e.target.value)}
-                  placeholder="https://github.com/owner/repo/pull/123"
-                  className="flex-1 p-4 bg-black/40 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500/50 outline-none transition text-slate-200"
-                />
-                <button
-                  onClick={handleFetchPr}
-                  disabled={!prUrl || isFetchingPr}
-                  className="px-6 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-30 rounded-xl font-bold transition-all flex items-center gap-2"
-                >
-                  {isFetchingPr ? <Loader2 size={18} className="animate-spin" /> : <Target size={18} />}
-                  取得
-                </button>
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 items-start">
+        {/* Left Side: Input */}
+        <div className="flex flex-col gap-6">
+          <div className="flex gap-2 p-1 bg-white/5 rounded-2xl w-fit">
+            <button 
+              onClick={() => setActiveTab('manual')}
+              className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <div className="flex items-center gap-2 italic">
+                <FileCode size={14} />
+                Manual Paste
               </div>
-            </div>
+            </button>
+            <button 
+              onClick={() => setActiveTab('github')}
+              className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'github' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              <div className="flex items-center gap-2 italic">
+                <GitPullRequest size={14} />
+                GitHub PR
+              </div>
+            </button>
+          </div>
 
-            {fetchedFiles.length > 0 && (
-              <div className="bg-black/20 border border-white/5 rounded-xl p-4">
-                <p className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
-                  <FileText size={14} /> 取得したファイル ({fetchedFiles.length})
-                </p>
-                <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                  {fetchedFiles.map((f, i) => (
-                    <span key={i} className="px-2 py-1 rounded bg-slate-800 text-slate-400 text-[10px] font-mono border border-white/5">
-                      {f.filename}
-                    </span>
+          <div className="glass-card p-6 sm:p-8 flex flex-col gap-6">
+            {activeTab === 'github' ? (
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">GitHub Pull Request URL</label>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="https://github.com/owner/repo/pull/123"
+                      value={prUrl}
+                      onChange={(e) => setPrUrl(e.target.value)}
+                      className="flex-1 p-4 bg-black/40 border border-white/10 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none transition text-sm font-bold font-inter"
+                    />
+                    <button 
+                      onClick={handleFetchPr}
+                      disabled={isFetchingPr || !prUrl}
+                      className="w-full sm:w-auto px-8 py-4 bg-white text-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-emerald-400 transition-all disabled:opacity-30"
+                    >
+                      {isFetchingPr ? <Loader2 className="animate-spin mx-auto" size={18} /> : "FETCH DIFF"}
+                    </button>
+                  </div>
+                  {prError && <p className="text-xs font-bold text-red-400 ml-1">{prError}</p>}
+                </div>
+                {code && (
+                  <div className="p-4 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-center gap-3">
+                    <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+                      <Globe size={16} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-indigo-300 uppercase">PR fetched successfully</h4>
+                      <p className="text-[10px] font-bold text-slate-500">変更箇所をAIが分析する準備が整いました</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                 <div className="flex items-center justify-between px-1">
+                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest italic flex items-center gap-2">
+                     <Terminal size={14} className="text-indigo-500" /> Input Source Code
+                   </label>
+                   <span className="text-[10px] font-bold text-slate-600">Markdown / Diff support</span>
+                 </div>
+                 <textarea 
+                   placeholder="レビューしてほしいコードを貼り付けてください..."
+                   className="w-full h-64 sm:h-96 p-5 sm:p-6 bg-black/40 border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition text-xs sm:text-sm font-inter leading-relaxed text-slate-300 font-bold"
+                   value={code}
+                   onChange={(e) => setCode(e.target.value)}
+                 />
+              </div>
+            )}
+
+            <button 
+              onClick={handleReview}
+              disabled={isReviewing || !code}
+              className="w-full py-5 sm:py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg sm:text-xl flex items-center justify-center gap-4 transition-all shadow-xl shadow-indigo-600/20 disabled:opacity-30"
+            >
+              {isReviewing ? <Loader2 size={24} className="animate-spin" /> : <Zap size={24} />}
+              {isReviewing ? "AIレビュー実行中..." : "AIにレビューを依頼する"}
+            </button>
+          </div>
+        </div>
+
+        {/* Right Side: Results */}
+        <div className="flex flex-col gap-8">
+          {!reviewResult && !isReviewing && (
+             <div className="glass-card p-12 sm:p-20 flex flex-col items-center justify-center text-center gap-6 border-dashed opacity-50">
+                <Search size={48} className="text-slate-700" />
+                <div className="space-y-2">
+                  <h3 className="text-lg sm:text-xl font-black text-slate-400">結果がここに表示されます</h3>
+                  <p className="text-xs font-bold text-slate-600 max-w-xs mx-auto uppercase tracking-widest">コードを入力してレビューを実行してください</p>
+                </div>
+             </div>
+          )}
+
+          {isReviewing && (
+            <div className="glass-card p-12 sm:p-20 flex flex-col items-center justify-center text-center gap-6 animate-pulse">
+               <Loader2 size={48} className="text-indigo-500 animate-spin" />
+               <div className="space-y-2">
+                  <h3 className="text-xl font-black text-indigo-400">エンジニア脳で解析中...</h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">アーキテクチャ・命名・可読性を評価しています</p>
+               </div>
+            </div>
+          )}
+
+          {reviewResult && (
+            <div className="flex flex-col gap-8 animate-slide-up">
+              <div className={`glass-card p-6 sm:p-8 flex flex-col gap-6 sm:flex-row items-center border-[2px] ${reviewResult.approved ? 'border-emerald-500/30' : 'border-amber-500/30'}`}>
+                <div className="flex flex-col items-center gap-2 sm:border-r border-white/5 sm:pr-8">
+                  <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-black shadow-lg ${reviewResult.approved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {reviewResult.score}
+                  </div>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Composite Score</span>
+                </div>
+                <div className="flex-1 text-center sm:text-left space-y-4">
+                  <div className="flex flex-col sm:flex-row items-center gap-3">
+                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-full border uppercase tracking-widest ${reviewResult.approved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'}`}>
+                       {reviewResult.approved ? 'Approved' : 'Changes Requested'}
+                     </span>
+                  </div>
+                  <p className="text-base sm:text-lg font-black text-slate-200 leading-relaxed italic line-clamp-3">
+                    "{reviewResult.summary}"
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="glass-card p-6 sm:p-8 flex flex-col gap-6">
+                  <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                     <Activity size={14} className="text-indigo-400" /> Metric Breakdown
+                  </h4>
+                  <div className="w-full h-[250px] sm:h-[300px]">
+                    <Radar data={radarData!} options={{
+                      scales: {
+                        r: {
+                          angleLines: { color: "rgba(255, 255, 255, 0.1)" },
+                          grid: { color: "rgba(255, 255, 255, 0.1)" },
+                          pointLabels: { color: "#94a3b8", font: { weight: 'bold', size: 10 } },
+                          ticks: { display: false, stepSize: 2 },
+                          min: 0,
+                          max: 10,
+                        },
+                      },
+                      plugins: { legend: { display: false } },
+                      maintainAspectRatio: false,
+                    }} />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                  {Object.entries(reviewResult.categories).map(([cat, detail]) => (
+                    <div key={cat} className="glass-card p-4 sm:p-5 hover:bg-white/5 transition-all group">
+                       <h5 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1 group-hover:text-indigo-300">
+                         {cat}
+                       </h5>
+                       <p className="text-[11px] sm:text-xs font-bold text-slate-400 leading-relaxed italic">
+                         {detail as string}
+                       </p>
+                    </div>
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="mb-6">
-            <label className="block text-sm font-bold text-gray-400 mb-2 flex items-center gap-2">
-              実装したコード
-            </label>
-            <textarea
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="// こちらにコードを貼り付けてください...&#10;function solveTask() {&#10;  // ...&#10;}"
-              className="w-full h-80 p-5 bg-black/40 border border-white/10 rounded-xl font-mono text-sm focus:ring-2 focus:ring-purple-500/50 outline-none transition text-slate-300 resize-none leading-relaxed"
-            />
-          </div>
-        )}
-
-        {/* コードプレビュー (GitHub取得時) */}
-        {activeTab === 'github' && code && (
-           <div className="mb-6">
-             <label className="block text-sm font-bold text-gray-400 mb-2">取得したコードのプレビュー</label>
-             <div className="w-full h-64 p-5 bg-black/40 border border-white/10 rounded-xl font-mono text-sm overflow-auto text-slate-400 leading-relaxed">
-               <pre>{code}</pre>
-             </div>
-           </div>
-        )}
-
-        {/* 送信ボタン */}
-        <button
-          onClick={handleSubmit}
-          disabled={!selectedPR || !code || loading}
-          className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-bold disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 flex items-center justify-center gap-3 shadow-lg shadow-purple-500/20"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" size={24} />
-              <span className="tracking-widest">レビュー依頼中...</span>
-            </>
-          ) : (
-            <>
-              <TrendingUp size={24} />
-              <span className="tracking-widest">レビュー依頼を送信</span>
-            </>
+            </div>
           )}
-        </button>
-      </div>
-
-      {/* レビュー結果表示 */}
-      {reviewResult && (
-        <div className="space-y-6 animate-slide-up pb-10">
-          {/* ステータス */}
-          <div className={`p-6 rounded-2xl border flex items-center gap-4 transition-all ${
-            reviewResult.status === 'Approved' 
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-              : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-          }`}>
-            <div className={`p-3 rounded-full ${reviewResult.status === 'Approved' ? 'bg-emerald-500/20' : 'bg-amber-500/20'}`}>
-              {reviewResult.status === 'Approved' ? <CheckCircle size={32} /> : <AlertCircle size={32} />}
-            </div>
-            <div>
-              <p className="font-bold text-2xl tracking-tight">
-                {reviewResult.status === 'Approved' ? '承認（Approved）' : '修正依頼（Changes Requested）'}
-              </p>
-              <p className="text-sm opacity-80 mt-1">
-                {reviewResult.status === 'Approved' ? '素晴らしい成果です！自動的に次のステップへ進めます。' : 'いくつかの重要な改善点があります。スタッフエンジニアの視点を確認してください。'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* レーダーチャート */}
-            <div className="glass-card p-8 flex flex-col items-center justify-center">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-6 w-full">5軸評価スコアリング</h3>
-              <div className="w-full max-w-[280px] aspect-square">
-                <Radar data={radarData!} options={radarOptions} />
-              </div>
-            </div>
-
-            {/* フィードバック */}
-            <div className="glass-card p-8">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                フィードバック詳細
-              </h3>
-              <p className="text-slate-200 text-[15px] leading-relaxed whitespace-pre-wrap">{reviewResult.feedback}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 問いかけ */}
-            <div className="glass-card p-8 border-purple-500/10 bg-purple-500/5">
-              <h3 className="text-xs font-bold text-purple-400 uppercase tracking-widest mb-5 flex items-center gap-2">
-                <HelpCircle size={16} /> 思考のトリガー（問いかけ）
-              </h3>
-              <ul className="space-y-4">
-                {reviewResult.questions.map((q, i) => (
-                  <li key={i} className="flex items-start gap-4">
-                    <span className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <span className="text-slate-300 text-sm leading-relaxed">{q}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* 次のフォーカス */}
-            <div className="glass-card p-8 bg-gradient-to-br from-indigo-500/5 to-pink-500/5">
-              <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Target size={16} /> 次回の学習フォーカス
-              </h3>
-              <p className="text-slate-200 font-bold text-lg mb-6">{reviewResult.nextFocus}</p>
-              
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter mb-2">継続すべき強み</p>
-                  <div className="flex flex-wrap gap-2">
-                    {reviewResult.detectedStrengths.map((s, i) => (
-                      <span key={i} className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[11px] font-bold">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-amber-500 uppercase tracking-tighter mb-2">重点的な伸び代</p>
-                  <div className="flex flex-wrap gap-2">
-                    {reviewResult.detectedWeaknesses.map((w, i) => (
-                      <span key={i} className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-bold">
-                        {w}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

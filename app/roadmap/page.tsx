@@ -1,111 +1,101 @@
 "use client";
 
-import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { RoadmapPhase } from "@/lib/types";
-import { Calendar, Loader2, PlayCircle, PlusCircle, Clock } from "lucide-react";
+import { 
+  Calendar, 
+  Map, 
+  ChevronRight, 
+  CheckCircle2, 
+  Circle, 
+  ArrowRight,
+  TrendingUp,
+  Zap,
+  Target
+} from "lucide-react";
 
 export default function Roadmap() {
-  const { profile, roadmap, saveRoadmap } = useStore();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [months, setMonths] = useState<number>(36);
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    try {
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate_roadmap", payload: { profile, months } }),
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) saveRoadmap(data);
-    } catch (e) {
-      console.error(e);
-      // Fallback
-      saveRoadmap([
-        { period: "1〜3ヶ月目", focus: "フロントエンド基礎の強化", milestones: ["React hooksをマスターする", "状態管理パターンを学ぶ", "複雑なUIコンポーネントを2つ構築する"], details: "Reactの公式ドキュメントを読み込み、カスタムフックの作成に挑戦してください。" },
-        { period: "4〜6ヶ月目", focus: "アーキテクチャとパフォーマンス", milestones: ["コード分割の実装", "Lighthouseスコア90以上", "Next.js App Routerの深耕"], details: "Next.jsのレンダリング手法（SSR/SSG/ISR）の違いを理解し、適切な場面で使い分けられるようにしてください。" }
-      ]);
-    }
-    setIsGenerating(false);
-  };
+  const { roadmap, profile } = useStore();
 
   if (!profile.hasCompletedOnboarding) {
-    return <div className="text-center mt-20 text-slate-400">先に「スキル診断」を完了してください。</div>;
+    return <div className="text-center mt-20 text-slate-400 p-4">先に「スキル診断」を完了してください。</div>;
+  }
+
+  if (roadmap.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center glass-card border-dashed">
+        <Map size={48} className="text-slate-600 mb-4" />
+        <h3 className="text-2xl font-bold text-slate-300 mb-2">まだロードマップがありません</h3>
+        <p className="text-slate-500 max-w-sm mx-auto">AIマネージャーがあなたの診断結果に基づいて、最適なロードマップを作成します。</p>
+      </div>
+    );
   }
 
   return (
-    <div className="w-full flex flex-col gap-8 animate-fade-in pb-20">
-      <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-b border-white/10 pb-6 gap-4">
+    <div className="w-full flex flex-col gap-8 md:gap-12 animate-fade-in pb-12">
+      <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-6 gap-6">
         <div>
-          <h1 className="text-4xl font-bold mb-2 flex items-center gap-3"><Calendar size={32} className="text-indigo-400" /> AI成長ロードマップ</h1>
-          <p className="text-slate-400">あなた専用のスキルアップ計画ラインナップです。</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-4 py-2.5 rounded-xl">
-            <Clock size={16} className="text-slate-400" />
-            <select 
-              value={months} 
-              onChange={(e) => setMonths(Number(e.target.value))}
-              disabled={isGenerating}
-              className="bg-transparent text-slate-200 outline-none cursor-pointer font-medium"
-            >
-              <option value={1}>1ヶ月</option>
-              <option value={3}>3ヶ月</option>
-              <option value={6}>6ヶ月</option>
-              <option value={12}>1年（12ヶ月）</option>
-              <option value={24}>2年（24ヶ月）</option>
-              <option value={36}>3年（36ヶ月）</option>
-            </select>
-          </div>
-          <button 
-            onClick={handleGenerate} 
-            disabled={isGenerating}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-medium flex items-center gap-2 transition-colors shrink-0"
-          >
-            {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <PlayCircle size={20} />}
-            {roadmap.length > 0 ? "再生成する" : "ロードマップ生成"}
-          </button>
+          <h1 className="text-3xl sm:text-4xl font-black mb-2 flex items-center gap-3">
+            <Calendar size={32} className="text-indigo-400" /> 成長ロードマップ
+          </h1>
+          <p className="text-slate-400 font-bold flex items-center gap-2 text-sm sm:text-base">
+             <TrendingUp size={18} className="text-indigo-500" /> {profile.role} への最短ルート
+          </p>
         </div>
       </div>
 
-      {roadmap.length === 0 && !isGenerating ? (
-        <div className="flex flex-col items-center justify-center py-20 px-4 text-center glass-card border-dashed">
-          <div className="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center text-slate-500 mb-4">
-            <Calendar size={32} />
-          </div>
-          <h3 className="text-2xl font-bold text-slate-300 mb-2">まだロードマップがありません</h3>
-          <p className="text-slate-500 max-w-md">「生成」ボタンをクリックして、AIマネージャーに期間分の成長計画を作成してもらいましょう。</p>
-        </div>
-      ) : null}
-
-      {roadmap.length > 0 && !isGenerating && (
-        <div className="relative border-l-2 border-indigo-500/30 ml-4 md:ml-8 pl-8 md:pl-12 flex flex-col gap-12 mt-4">
-          {roadmap.map((phase: RoadmapPhase, i: number) => (
-            <div key={i} className="relative glass-card p-6 md:p-8 animate-slide-up" style={{ animationDelay: `${i * 0.1}s` }}>
-              <div className="absolute w-6 h-6 bg-indigo-500 rounded-full -left-[45px] top-8 md:-left-[61px] border-4 border-[#0a0a0f] shadow-[0_0_15px_rgba(99,102,241,0.8)]"></div>
-              <div className="text-sm font-bold text-indigo-400 tracking-wider uppercase mb-2">{phase.period}</div>
-              <h3 className="text-2xl font-bold mb-4 text-slate-100">{phase.focus}</h3>
+      <div className="relative border-l-2 border-indigo-500/20 ml-2 sm:ml-6 pl-6 sm:pl-10 space-y-12">
+        {roadmap.map((phase, i) => (
+          <div key={i} className="relative group">
+            {/* Dot */}
+            <div className="absolute -left-[31px] sm: -left-[49px] top-0 w-6 h-6 rounded-full bg-[#0a0a0f] border-4 border-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.5)] z-10 transition-transform group-hover:scale-125" />
+            
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-3 font-black text-indigo-400 uppercase tracking-widest text-xs">
+                <span className="bg-indigo-600/10 px-3 py-1 rounded-full border border-indigo-500/20">{phase.period}</span>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-200">{phase.focus}</span>
+              </div>
               
-              {phase.details && (
-                <div className="mb-6 bg-black/30 border border-white/5 rounded-xl p-4">
-                  <p className="text-slate-300 leading-relaxed text-sm">{phase.details}</p>
-                </div>
-              )}
+              <div className="glass-card p-6 sm:p-8 hover:border-indigo-500/30 transition-all duration-300">
+                <div className="flex flex-col lg:flex-row gap-8">
+                  <div className="flex-1 space-y-6">
+                    <div>
+                      <h3 className="text-xl sm:text-2xl font-black text-white mb-4 flex items-center gap-2">
+                         <Target size={20} className="text-indigo-500" /> マイルストーン
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {phase.milestones.map((ms, j) => (
+                          <div key={j} className="flex items-center gap-3 text-sm font-bold bg-black/40 p-4 rounded-xl border border-white/5 group/ms">
+                            <CheckCircle2 size={18} className="text-indigo-500 shrink-0" />
+                            <span className="text-slate-200 group-hover/ms:text-indigo-400 transition-colors">{ms}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
 
-              <ul className="flex flex-col gap-3">
-                {phase.milestones.map((m, j) => (
-                  <li key={j} className="flex items-start gap-3">
-                    <PlusCircle size={20} className="text-cyan-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-200 leading-relaxed font-medium">{m}</span>
-                  </li>
-                ))}
-              </ul>
+                  <div className="lg:w-80 shrink-0">
+                    <div className="bg-white/5 rounded-2xl p-6 border border-white/5 transition-all group-hover:bg-white/[0.07]">
+                       <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                         <Zap size={14} className="text-yellow-500" /> 詳細アドバイス
+                       </h4>
+                       <p className="text-sm text-slate-400 leading-relaxed font-bold">
+                         {phase.details}
+                       </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8 flex justify-center">
+        <button className="flex items-center gap-2 text-slate-500 hover:text-indigo-400 font-bold transition-all text-sm group">
+          ロードマップを更新する <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
     </div>
   );
 }

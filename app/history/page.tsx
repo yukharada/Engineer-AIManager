@@ -61,14 +61,6 @@ export default function HistoryPage() {
     return acc;
   }, { design: 0, naming: 0, errorHandling: 0, testing: 0, performance: 0 });
 
-  const finalAvg = totalReviews > 0 ? {
-    design: (avgScores.design / totalReviews).toFixed(1),
-    naming: (avgScores.naming / totalReviews).toFixed(1),
-    errorHandling: (avgScores.errorHandling / totalReviews).toFixed(1),
-    testing: (avgScores.testing / totalReviews).toFixed(1),
-    performance: (avgScores.performance / totalReviews).toFixed(1)
-  } : { design: 0, naming: 0, errorHandling: 0, testing: 0, performance: 0 };
-
   const totalAvgScore = totalReviews > 0 
     ? (Object.values(avgScores).reduce((a, b) => a + b, 0) / (totalReviews * 5)).toFixed(1)
     : "0.0";
@@ -108,7 +100,6 @@ export default function HistoryPage() {
     ]
   };
 
-  // Weakness distribution
   const weaknessCounts: Record<string, number> = {};
   reviewHistory.forEach(r => {
     (r.result.detectedWeaknesses || []).forEach(w => {
@@ -138,22 +129,22 @@ export default function HistoryPage() {
     responsive: true,
     maintainAspectRatio: false,
     scales: {
-      y: { min: 0, max: 10, grid: { color: "rgba(255, 255, 255, 0.05)" }, ticks: { color: "#94a3b8" } },
-      x: { grid: { display: false }, ticks: { color: "#94a3b8" } }
+      y: { min: 0, max: 10, grid: { color: "rgba(255, 255, 255, 0.05)" }, ticks: { color: "#94a3b8", font: { size: 10 } } },
+      x: { grid: { display: false }, ticks: { color: "#94a3b8", font: { size: 10 } } }
     },
     plugins: {
-      legend: { position: 'bottom' as const, labels: { color: "#94a3b8", usePointStyle: true, boxWidth: 6 } }
+      legend: { position: 'bottom' as const, labels: { color: "#94a3b8", usePointStyle: true, boxWidth: 6, font: { size: 10 } } }
     }
   };
 
   return (
-    <div className="w-full flex flex-col gap-8 animate-fade-in pb-20">
+    <div className="w-full flex flex-col gap-8 md:gap-12 animate-fade-in pb-12 px-1">
       <div className="flex flex-col md:flex-row items-start md:items-end justify-between border-b border-white/10 pb-6 gap-4">
         <div>
-          <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
+          <h1 className="text-3xl sm:text-4xl font-black mb-2 flex items-center gap-3">
             <Clock size={32} className="text-indigo-400" /> レビュー履歴
           </h1>
-          <p className="text-slate-400">これまでの挑戦とAIマネージャーからのフィードバックの軌跡。</p>
+          <p className="text-slate-400 font-bold">これまでの挑戦とフィードバックの軌跡。</p>
         </div>
       </div>
 
@@ -161,55 +152,55 @@ export default function HistoryPage() {
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center glass-card border-dashed">
           <Clock size={48} className="text-slate-600 mb-4" />
           <h3 className="text-2xl font-bold text-slate-300 mb-2">履歴がまだありません</h3>
-          <p className="text-slate-500 max-w-md">課題をクリアしてAIレビューを受けると、ここに成長の記録が蓄積されます。</p>
+          <p className="text-slate-500 max-w-sm mx-auto font-bold">課題をクリアしてAIレビューを受けると、ここに成長の記録が蓄積されます。</p>
         </div>
       ) : (
         <>
-          {/* Stats Bar */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="glass-card p-6 flex flex-col gap-1 border-indigo-500/20">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">総レビュー数</span>
+          {/* Stats Bar - Responsive Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="glass-card p-6 flex flex-col gap-1 border-indigo-500/10">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">総レビュー数</span>
               <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-slate-100">{totalReviews}</span>
-                <span className="text-xs text-indigo-400">回</span>
+                <span className="text-2xl sm:text-3xl font-black text-slate-100">{totalReviews}</span>
+                <span className="text-xs font-bold text-indigo-400 uppercase tracking-tighter">Reviews</span>
               </div>
             </div>
-            <div className="glass-card p-6 flex flex-col gap-1 border-emerald-500/20">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Approved 率</span>
+            <div className="glass-card p-6 flex flex-col gap-1 border-emerald-500/10">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Approved 率</span>
               <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-emerald-400">{approvedRate}%</span>
-                <CheckCircle2 size={20} className="text-emerald-500" />
+                <span className="text-2xl sm:text-3xl font-black text-emerald-400">{approvedRate}%</span>
+                <CheckCircle2 size={24} className="text-emerald-500" />
               </div>
             </div>
-            <div className="glass-card p-6 flex flex-col gap-1 border-purple-500/20">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">平均スコア</span>
+            <div className="glass-card p-6 flex flex-col gap-1 border-purple-500/10">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">平均スコア</span>
               <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-purple-400">{totalAvgScore}</span>
-                <Activity size={20} className="text-purple-500" />
+                <span className="text-2xl sm:text-3xl font-black text-purple-400">{totalAvgScore}</span>
+                <Activity size={24} className="text-purple-500" />
               </div>
             </div>
-            <div className="glass-card p-6 flex flex-col gap-1 border-cyan-500/20">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">最高スコア (設計)</span>
+            <div className="glass-card p-6 flex flex-col gap-1 border-cyan-500/10">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">最高 (設計)</span>
               <div className="flex items-center gap-2">
-                <span className="text-3xl font-bold text-cyan-400">{Math.max(...reviewHistory.map(r => r.result.scores.design))}</span>
-                <Award size={20} className="text-cyan-500" />
+                <span className="text-2xl sm:text-3xl font-black text-cyan-400">{Math.max(...reviewHistory.map(r => r.result.scores.design))}</span>
+                <Award size={24} className="text-cyan-500" />
               </div>
             </div>
           </div>
 
-          {/* Charts Section */}
+          {/* Charts Section - Responsive Stacking */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="glass-card p-6 min-h-[400px] flex flex-col gap-4">
-              <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
+            <div className="glass-card p-6 sm:p-8 min-h-[350px] sm:min-h-[450px] flex flex-col gap-6">
+              <h3 className="text-sm font-black text-slate-300 flex items-center gap-3 uppercase tracking-widest">
                 <TrendingUp size={16} className="text-indigo-400" /> スコア推移トレンド
               </h3>
               <div className="flex-1 w-full relative">
                 <Line data={lineChartData} options={chartOptions as any} />
               </div>
             </div>
-            <div className="glass-card p-6 min-h-[400px] flex flex-col gap-4">
-              <h3 className="text-sm font-bold text-slate-300 flex items-center gap-2">
-                <AlertCircle size={16} className="text-amber-400" /> 頻出する弱点 (Top 5)
+            <div className="glass-card p-6 sm:p-8 min-h-[350px] sm:min-h-[450px] flex flex-col gap-6">
+              <h3 className="text-sm font-black text-slate-300 flex items-center gap-3 uppercase tracking-widest">
+                <AlertCircle size={16} className="text-amber-400" /> 指摘頻出カテゴリ
               </h3>
               <div className="flex-1 w-full relative">
                 <Bar 
@@ -224,29 +215,29 @@ export default function HistoryPage() {
           </div>
 
           {/* Timeline Section */}
-          <div className="flex flex-col gap-6">
-            <h3 className="text-xl font-bold text-slate-200 flex items-center gap-3">
-              <Filter size={20} className="text-slate-500" /> タイムライン
+          <div className="flex flex-col gap-8">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-200 flex items-center gap-3">
+              <Filter size={24} className="text-slate-500" /> タイムライン
             </h3>
-            <div className="relative border-l-2 border-slate-800 ml-4 pl-8 flex flex-col gap-8">
+            <div className="relative border-l-2 border-slate-800 ml-2 sm:ml-6 pl-6 sm:pl-10 space-y-10">
               {sortedHistory.map((item, i) => {
                 const challenge = challenges.find(c => c.id === item.taskId);
                 const isApproved = item.result.status === 'Approved';
                 
                 return (
                   <div key={item.id} className="relative animate-slide-up" style={{ animationDelay: `${i * 0.05}s` }}>
-                    <div className={`absolute w-4 h-4 rounded-full -left-[41px] top-6 border-4 border-[#0a0a0f] shadow-sm ${
+                    <div className={`absolute w-5 h-5 rounded-full -left-[31px] sm:-left-[51px] top-6 border-4 border-[#0a0a0f] shadow-sm z-10 ${
                       isApproved ? "bg-emerald-500 shadow-emerald-500/50" : "bg-amber-500 shadow-amber-500/50"
                     }`}></div>
                     
-                    <div className="glass-card hover:border-white/20 transition-all group">
-                      <div className="p-6 flex flex-col md:flex-row gap-6 items-start">
-                        <div className="flex-1 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded">
+                    <div className="glass-card hover:border-indigo-500/30 transition-all group overflow-hidden">
+                      <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-8 items-start">
+                        <div className="flex-1 space-y-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white/5 px-2.5 py-1 rounded-lg border border-white/5">
                               {format(new Date(item.timestamp), "yyyy/MM/dd HH:mm", { locale: ja })}
                             </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                            <span className={`text-[10px] font-black px-3 py-1 rounded-lg border uppercase tracking-widest ${
                               isApproved 
                                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" 
                                 : "bg-amber-500/10 text-amber-400 border-amber-500/20"
@@ -256,33 +247,35 @@ export default function HistoryPage() {
                           </div>
                           
                           <div>
-                            <h4 className="text-lg font-bold text-slate-100 group-hover:text-indigo-400 transition-colors">
+                            <h4 className="text-xl sm:text-2xl font-black text-slate-100 group-hover:text-indigo-400 transition-colors tracking-tight">
                               {challenge?.title || "不明な課題"}
                             </h4>
-                            <p className="text-sm text-slate-400 mt-1 flex items-center gap-2">
+                            <p className="text-xs sm:text-sm text-slate-500 font-bold mt-1 line-clamp-1 italic">
                               {item.acceptanceCriteria}
                             </p>
                           </div>
 
                           <div className="flex flex-wrap gap-2 pt-2">
                             {Object.entries(item.result.scores).map(([key, score]) => (
-                              <div key={key} className="flex flex-col items-center bg-black/40 border border-white/5 rounded-lg px-2 py-1 min-w-[60px]">
-                                <span className="text-[9px] text-slate-500 uppercase">{key === 'errorHandling' ? 'error' : key}</span>
-                                <span className="text-xs font-bold text-slate-200">{score as number}</span>
+                              <div key={key} className="flex flex-col items-center bg-black/40 border border-white/5 rounded-xl px-3 py-1.5 min-w-[70px]">
+                                <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter opacity-70">
+                                  {key === 'errorHandling' ? 'error' : key}
+                                </span>
+                                <span className="text-sm font-black text-indigo-300">{score as number}</span>
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        <div className="w-full md:w-64 p-4 bg-white/5 rounded-xl border border-white/5">
-                          <p className="text-xs text-slate-400 italic line-clamp-4 leading-relaxed">
+                        <div className="w-full md:w-72 shrink-0 p-5 bg-white/5 rounded-2xl border border-white/5 group-hover:bg-white/[0.07] transition-all">
+                          <p className="text-xs sm:text-sm text-slate-400 font-bold leading-relaxed line-clamp-4 italic">
                             "{item.result.feedback}"
                           </p>
                           <Link 
                             href={`/review?challengeId=${item.taskId}`}
-                            className="mt-4 flex items-center justify-center gap-1 text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                            className="mt-6 flex items-center justify-center gap-2 text-[10px] font-black text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-widest"
                           >
-                            詳細を見る <ChevronRight size={12} />
+                            レビュー詳細を見る <ChevronRight size={14} />
                           </Link>
                         </div>
                       </div>
