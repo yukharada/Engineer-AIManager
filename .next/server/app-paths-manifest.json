@@ -1,11 +1,9 @@
 {
-  "/login/page": "app/login/page.js",
   "/api/auth/login/route": "app/api/auth/login/route.js",
   "/roadmap/page": "app/roadmap/page.js",
-  "/page": "app/page.js",
-  "/challenges/page": "app/challenges/page.js",
-  "/history/page": "app/history/page.js",
+  "/login/page": "app/login/page.js",
   "/review/page": "app/review/page.js",
+  "/page": "app/page.js",
   "/analytics/page": "app/analytics/page.js",
-  "/api/auth/logout/route": "app/api/auth/logout/route.js"
+  "/challenges/page": "app/challenges/page.js"
 }

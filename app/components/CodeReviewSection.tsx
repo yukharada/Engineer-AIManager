@@ -14,10 +14,7 @@ import {
 } from 'chart.js';
 import { 
   Search, 
-  Filter, 
   Terminal, 
-  CheckCircle2, 
-  AlertCircle, 
   Zap, 
   ChevronRight, 
   Loader2,
@@ -28,6 +25,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { getCurrentDateISO } from '@/lib/dateUtils';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
@@ -86,6 +84,8 @@ export default function CodeReviewSection() {
       const data = await res.json();
       setReviewResult(data);
       
+      const now = getCurrentDateISO();
+
       // Save review history
       saveReviewHistory({
         id: Date.now().toString(),
@@ -94,11 +94,11 @@ export default function CodeReviewSection() {
           ? targetIndices.map(i => selectedChallenge.acceptanceCriteria[i]).join(', ')
           : (selectedChallenge?.title || 'General Review'),
         result: data,
-        timestamp: new Date().toISOString()
+        timestamp: now
       });
 
       // Update actual challenge status if approved
-      if (data.approved && selectedChallenge) {
+      if (data.status === 'Approved' && selectedChallenge) {
         const updatedChallenges = challenges.map(c => {
           if (c.id === selectedChallenge.id) {
             const completedCriteria = { ...(c.completedCriteria || {}) };
@@ -109,7 +109,12 @@ export default function CodeReviewSection() {
             }
             
             const allDone = c.acceptanceCriteria.every((_, idx) => completedCriteria[idx]);
-            return { ...c, completedCriteria, completed: allDone };
+            return { 
+              ...c, 
+              completedCriteria, 
+              completed: allDone,
+              completedAt: allDone ? now : c.completedAt
+            };
           }
           return c;
         });
@@ -125,7 +130,7 @@ export default function CodeReviewSection() {
   const radarData = useMemo(() => {
     if (!reviewResult) return null;
     return {
-      labels: ["設計", "命名", "パフォーマンス", "セキュリティ", "テスト"],
+      labels: ["設計", "命名", "パフォーマンス", "エラー", "テスト"],
       datasets: [
         {
           label: "今回の評点",
@@ -133,7 +138,7 @@ export default function CodeReviewSection() {
             reviewResult.scores.design,
             reviewResult.scores.naming,
             reviewResult.scores.performance,
-            reviewResult.scores.security,
+            reviewResult.scores.errorHandling, // Changed security -> errorHandling to match types
             reviewResult.scores.testing
           ],
           backgroundColor: "rgba(99, 102, 241, 0.2)",
@@ -145,7 +150,7 @@ export default function CodeReviewSection() {
   }, [reviewResult]);
 
   return (
-    <div className="w-full flex flex-col gap-6 sm:gap-10 animate-fade-in pb-12">
+    <div className="w-full flex flex-col gap-6 sm:gap-10 animate-fade-in pb-12 px-1">
       {/* Target Selector Card */}
       <div className="glass-card p-5 sm:p-8 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between border-indigo-500/20">
         <div className="flex-1 space-y-2">
@@ -277,21 +282,21 @@ export default function CodeReviewSection() {
 
           {reviewResult && (
             <div className="flex flex-col gap-8 animate-slide-up">
-              <div className={`glass-card p-6 sm:p-8 flex flex-col gap-6 sm:flex-row items-center border-[2px] ${reviewResult.approved ? 'border-emerald-500/30' : 'border-amber-500/30'}`}>
+              <div className={`glass-card p-6 sm:p-8 flex flex-col gap-6 sm:flex-row items-center border-[2px] ${reviewResult.status === 'Approved' ? 'border-emerald-500/30' : 'border-amber-500/30'}`}>
                 <div className="flex flex-col items-center gap-2 sm:border-r border-white/5 sm:pr-8">
-                  <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-black shadow-lg ${reviewResult.approved ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                    {reviewResult.score}
+                  <div className={`w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center text-3xl sm:text-4xl font-black shadow-lg ${reviewResult.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {Math.round((Object.values(reviewResult.scores) as number[]).reduce((a, b) => a + b, 0) / 0.5) / 10}
                   </div>
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Composite Score</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Avg Score</span>
                 </div>
                 <div className="flex-1 text-center sm:text-left space-y-4">
                   <div className="flex flex-col sm:flex-row items-center gap-3">
-                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-full border uppercase tracking-widest ${reviewResult.approved ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'}`}>
-                       {reviewResult.approved ? 'Approved' : 'Changes Requested'}
+                     <span className={`text-[10px] font-black px-3 py-1.5 rounded-full border uppercase tracking-widest ${reviewResult.status === 'Approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'}`}>
+                       {reviewResult.status}
                      </span>
                   </div>
                   <p className="text-base sm:text-lg font-black text-slate-200 leading-relaxed italic line-clamp-3">
-                    "{reviewResult.summary}"
+                    "{reviewResult.feedback.substring(0, 150)}..."
                   </p>
                 </div>
               </div>
@@ -320,14 +325,17 @@ export default function CodeReviewSection() {
                 </div>
 
                 <div className="flex flex-col gap-4">
-                  {Object.entries(reviewResult.categories).map(([cat, detail]) => (
+                  {Object.entries(reviewResult.scores).map(([cat, score]) => (
                     <div key={cat} className="glass-card p-4 sm:p-5 hover:bg-white/5 transition-all group">
                        <h5 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1 group-hover:text-indigo-300">
                          {cat}
                        </h5>
-                       <p className="text-[11px] sm:text-xs font-bold text-slate-400 leading-relaxed italic">
-                         {detail as string}
-                       </p>
+                       <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                             <div className="h-full bg-indigo-500 transition-all" style={{ width: `${(score as number) * 10}%` }} />
+                          </div>
+                          <span className="text-xs font-black text-slate-400">{score as number}/10</span>
+                       </div>
                     </div>
                   ))}
                 </div>

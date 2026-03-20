@@ -4,7 +4,8 @@ export interface UserProfile {
   goals: string;
   skills: SkillScores;
   hasCompletedOnboarding: boolean;
-  currentSystemDate: string;
+  onboardingCompletedDate?: string; // オンボーディング完了日（ISO 8601形式）
+  roadmapStartDate?: string;        // ロードマップ開始日（ISO 8601形式）
   evaluation?: {
     summary: string;
     strengths: string[];
@@ -39,6 +40,9 @@ export interface Challenge {
   gainedSkills?: { category: keyof SkillScores; points: number }[];
   difficulty: "Beginner" | "Intermediate" | "Advanced";
   completed: boolean;
+  createdAt: string;        // 作成日時（ISO 8601形式）
+  deadline?: string;        // 推奨完了期限（ISO 8601形式）
+  completedAt?: string;     // 完了日時（ISO 8601形式）
 }
 
 export interface CodeReviewResult {
@@ -74,7 +78,7 @@ export interface ReviewHistoryItem {
   id: string;
   taskId: string;
   acceptanceCriteria: string; // The title of the PR/criteria
-  result: ClaudeReviewResult; // This matches the user's ReviewResult interface
+  result: ClaudeReviewResult; 
   timestamp: string;
 }
 

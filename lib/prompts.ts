@@ -1,3 +1,4 @@
+import { getCurrentDateISO } from "./dateUtils";
 import { UserProfile, Challenge } from "./types";
 
 export const PROMPTS = {
@@ -5,7 +6,7 @@ export const PROMPTS = {
 You are an expert AI Engineering Manager evaluating an engineer's profile.
 Profile Role: ${profile.role}
 Experience: ${profile.experienceYears} years
-Goals: ${profile.goals}
+Profile Goals: ${profile.goals}
 Self-assessed Skills (1-10):
 - Frontend: ${profile.skills.frontend}
 - Backend: ${profile.skills.backend}
@@ -31,7 +32,7 @@ IMPORTANT: All text values in the JSON output MUST be entirely in Japanese.
 以下のプロフィールに基づき、${months}ヶ月間の成長ロードマップを作成してください。
 Profile: ${JSON.stringify(profile)}
 
-以下の構造を持つJSON配列を出力してください。スケジュールは全体で${months}ヶ月間になるように、${months <= 6 ? '1ヶ月ごと' : (months <= 12 ? '2〜3ヶ月ごと' : '四半期または半年ごと')}にフェーズを分けてください。
+以下の構造を持つ JSON 配列を出力してください。スケジュールは全体で${months}ヶ月間になるように、${months <= 6 ? '1ヶ月ごと' : (months <= 12 ? '2〜3ヶ月ごと' : '四半期または半年ごと')}にフェーズを分けてください。
 [
   {
     "period": "期間 (例: 1ヶ月目, 1〜3ヶ月目, Q1 など)",
@@ -158,7 +159,7 @@ All text values MUST be in Japanese.
 
   monthly_review: (profile: UserProfile, completedChallengesCount: number) => `
 You are the Engineer Manager doing a monthly performance review.
-Current System Date is: ${profile.currentSystemDate}
+Current System Date is: ${getCurrentDateISO()}
 The user completed ${completedChallengesCount} challenges this month.
 Profile: ${JSON.stringify(profile)}
 

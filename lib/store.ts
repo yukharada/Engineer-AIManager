@@ -17,7 +17,6 @@ const defaultProfile: UserProfile = {
     devProcess: 1,
   },
   hasCompletedOnboarding: false,
-  currentSystemDate: new Date("2026-03-21").toISOString(),
   evaluation: {
     summary: "",
     strengths: [],
@@ -38,11 +37,10 @@ export function useStore() {
     const savedProfile = localStorage.getItem("egs_profile");
     if (savedProfile) {
       const parsed = JSON.parse(savedProfile);
-      parsed.currentSystemDate = new Date("2026-03-21").toISOString();
+      // Remove legacy field if exists
+      if (parsed.currentSystemDate) delete parsed.currentSystemDate;
       if (!parsed.evaluation) parsed.evaluation = defaultProfile.evaluation;
       setProfile(parsed);
-    } else {
-      setProfile(p => ({...p, currentSystemDate: new Date("2026-03-21").toISOString()}));
     }
 
     const savedRoadmap = localStorage.getItem("egs_roadmap");
@@ -97,7 +95,12 @@ export function useStore() {
           criteriaIndices.forEach(idx => { completedCriteria[idx] = true; });
           
           const allMet = c.acceptanceCriteria.every((_, idx) => completedCriteria[idx]);
-          return { ...c, completedCriteria, completed: allMet };
+          return { 
+            ...c, 
+            completedCriteria, 
+            completed: allMet,
+            completedAt: allMet ? new Date().toISOString() : c.completedAt
+          };
         }
         return c;
       });

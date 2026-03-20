@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { Compass, ArrowRight, ArrowLeft, CheckCircle2, Loader2, Star } from "lucide-react";
+import { getCurrentDateISO } from "@/lib/dateUtils";
+import { UserProfile } from "@/lib/types";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -27,13 +29,15 @@ export default function Onboarding() {
   const handleComplete = async () => {
     setIsGenerating(true);
     try {
-      const profile = {
+      const now = getCurrentDateISO();
+      const profile: UserProfile = {
         role,
         experienceYears: Number(experience),
         goals,
         skills,
         hasCompletedOnboarding: true,
-        currentSystemDate: new Date().toISOString(),
+        onboardingCompletedDate: now,
+        roadmapStartDate: now,
       };
 
       const res = await fetch("/api/gemini", {
@@ -48,13 +52,15 @@ export default function Onboarding() {
     } catch (e) {
       console.error(e);
       // Fallback
+      const now = getCurrentDateISO();
       saveProfile({
         role,
         experienceYears: Number(experience),
         goals,
         skills,
         hasCompletedOnboarding: true,
-        currentSystemDate: new Date().toISOString(),
+        onboardingCompletedDate: now,
+        roadmapStartDate: now,
       });
       router.push("/");
     }

@@ -10,8 +10,10 @@ import {
   ArrowRight,
   TrendingUp,
   Zap,
-  Target
+  Target,
+  Clock
 } from "lucide-react";
+import { getCurrentRoadmapPhase, getRoadmapElapsedMonths, formatDateJapanese } from "@/lib/dateUtils";
 
 export default function Roadmap() {
   const { roadmap, profile } = useStore();
@@ -30,6 +32,14 @@ export default function Roadmap() {
     );
   }
 
+  const currentPhase = profile.roadmapStartDate 
+    ? getCurrentRoadmapPhase(profile.roadmapStartDate)
+    : '未開始';
+  
+  const elapsedMonths = profile.roadmapStartDate
+    ? getRoadmapElapsedMonths(profile.roadmapStartDate)
+    : 0;
+
   return (
     <div className="w-full flex flex-col gap-8 md:gap-12 animate-fade-in pb-12">
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-6 gap-6">
@@ -41,6 +51,20 @@ export default function Roadmap() {
              <TrendingUp size={18} className="text-indigo-500" /> {profile.role} への最短ルート
           </p>
         </div>
+        
+        {profile.roadmapStartDate && (
+          <div className="flex items-center gap-6 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl px-6 py-4">
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">開始日</span>
+              <span className="text-sm font-black text-slate-200">{formatDateJapanese(profile.roadmapStartDate)}</span>
+            </div>
+            <div className="w-[1px] h-8 bg-white/5" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">状況</span>
+              <span className="text-sm font-black text-indigo-400">{elapsedMonths}ヶ月目 / {currentPhase}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="relative border-l-2 border-indigo-500/20 ml-2 sm:ml-6 pl-6 sm:pl-10 space-y-12">
@@ -51,12 +75,19 @@ export default function Roadmap() {
             
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-3 font-black text-indigo-400 uppercase tracking-widest text-xs">
-                <span className="bg-indigo-600/10 px-3 py-1 rounded-full border border-indigo-500/20">{phase.period}</span>
+                <span className={`px-3 py-1 rounded-full border ${phase.period === currentPhase ? 'bg-indigo-600 text-white border-indigo-500 glow-pulse' : 'bg-indigo-600/10 border-indigo-500/20'}`}>
+                  {phase.period}
+                </span>
                 <span className="text-slate-600">|</span>
                 <span className="text-slate-200">{phase.focus}</span>
+                {phase.period === currentPhase && (
+                   <span className="ml-auto text-[10px] font-black text-indigo-400 flex items-center gap-1">
+                     <Clock size={12} /> CURRENT PHASE
+                   </span>
+                )}
               </div>
               
-              <div className="glass-card p-6 sm:p-8 hover:border-indigo-500/30 transition-all duration-300">
+              <div className={`glass-card p-6 sm:p-8 hover:border-indigo-500/30 transition-all duration-300 ${phase.period === currentPhase ? 'ring-1 ring-indigo-500/50 scale-[1.01]' : ''}`}>
                 <div className="flex flex-col lg:flex-row gap-8">
                   <div className="flex-1 space-y-6">
                     <div>
