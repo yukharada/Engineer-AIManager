@@ -39,7 +39,7 @@ export default function Challenges() {
         const now = getCurrentDateISO();
         const challengesWithDates = data.map((c: any) => ({
           ...c,
-          id: generateUUID(), // Ensure a valid UUID is used for the database
+          id: generateUUID(),
           createdAt: now,
           deadline: getChallengeDeadline(now, 7),
         }));
@@ -60,8 +60,17 @@ export default function Challenges() {
     }
   };
 
+  const getDifficultyLabel = (diff: string) => {
+    switch (diff) {
+      case "Beginner": return "初級";
+      case "Intermediate": return "中級";
+      case "Advanced": return "上級";
+      default: return diff;
+    }
+  };
+
   if (!profile.hasCompletedOnboarding) {
-    return <div className="text-center mt-20 text-slate-400 p-4">先に「スキル診断」を完了してください。</div>;
+    return <div className="text-center mt-20 text-slate-400 p-4 font-jp">先に「スキル診断」を完了してください。</div>;
   }
 
   return (
@@ -76,7 +85,7 @@ export default function Challenges() {
         <button 
           onClick={handleGenerate} 
           disabled={isGenerating}
-          className="w-full md:w-auto bg-white text-black hover:bg-slate-200 disabled:opacity-50 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+          className="w-full md:w-auto bg-white text-black hover:bg-slate-200 disabled:opacity-50 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] font-jp"
         >
           {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
           {challenges.length > 0 ? "課題を再生成" : "課題を取得"}
@@ -98,8 +107,8 @@ export default function Challenges() {
             return (
               <div key={c.id} className={`glass-card p-6 sm:p-8 flex flex-col gap-6 transition-all duration-300 ${c.completed ? "opacity-60 grayscale" : "hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(99,102,241,0.2)]"} ${overdue ? 'border-red-500/30' : ''}`} style={{ animationDelay: `${i * 0.1}s` }}>
                 <div className="flex justify-between items-start">
-                  <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${getDifficultyColor(c.difficulty)}`}>
-                    {c.difficulty}
+                  <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${getDifficultyColor(c.difficulty)} font-jp`}>
+                    {getDifficultyLabel(c.difficulty)}
                   </span>
                   <div className="text-slate-400">
                     {c.completed ? <CheckCircle2 size={28} className="text-indigo-400" /> : <div className="w-7 h-7 border-2 border-slate-800 rounded-full" />}
@@ -113,7 +122,7 @@ export default function Challenges() {
                     {c.gainedSkills && c.gainedSkills.length > 0 && (
                       <div className="flex flex-wrap gap-2">
                         {c.gainedSkills.map((gs, k) => (
-                          <span key={k} className="flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-tighter">
+                          <span key={k} className="flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase tracking-tighter font-jp">
                             <TrendingUp size={12} />
                             {getCategoryLabel(gs.category)} +{gs.points}
                           </span>
@@ -121,7 +130,7 @@ export default function Challenges() {
                       </div>
                     )}
                     {c.deadline && !c.completed && (
-                      <div className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 uppercase tracking-tighter ${overdue ? 'text-red-400 border-red-500/30 bg-red-500/5' : 'text-slate-400'}`}>
+                      <div className={`flex items-center gap-1.5 text-[10px] font-black px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 uppercase tracking-tighter font-jp ${overdue ? 'text-red-400 border-red-500/30 bg-red-500/5' : 'text-slate-400'}`}>
                         {overdue ? <AlertCircle size={12} /> : <Calendar size={12} />}
                         期限: {formatRelativeTime(c.deadline)}
                       </div>
@@ -133,9 +142,9 @@ export default function Challenges() {
                 
                 <div className="pt-6 border-t border-white/5 flex flex-col gap-6">
                   <div className="space-y-4">
-                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between font-jp">
                       <span>達成条件 / PR分割</span>
-                      <span className="text-indigo-400/70 italic">Auto-Sync</span>
+                      <span className="text-indigo-400/70 italic uppercase">Auto-Sync</span>
                     </div>
                     <ul className="flex flex-col gap-4">
                       {c.acceptanceCriteria.map((ac, j) => {
@@ -155,11 +164,11 @@ export default function Challenges() {
                   {!c.completed && (
                     <Link 
                       href={`/review?challengeId=${c.id}`}
-                      className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm font-black transition-all group border ${overdue ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20'}`}
+                      className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm font-black transition-all group border font-jp ${overdue ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20'}`}
                     >
                       <GitPullRequest size={18} />
                       レビューを依頼する
-                      <ArrowRight size={18} className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+                      <ArrowRight size={18} className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all font-jp" />
                     </Link>
                   )}
                 </div>

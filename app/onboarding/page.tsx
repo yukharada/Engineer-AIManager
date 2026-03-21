@@ -3,200 +3,210 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import { Compass, ArrowRight, ArrowLeft, CheckCircle2, Loader2, Star } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2 } from "lucide-react";
 import { getCurrentDateISO } from "@/lib/dateUtils";
-import { UserProfile } from "@/lib/types";
 
 export default function Onboarding() {
+  const { profile, saveProfile, saveRoadmap } = useStore();
+  const router = useRouter();
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState("");
-  const [experience, setExperience] = useState("");
-  const [goals, setGoals] = useState("");
-  const [skills, setSkills] = useState({
-    frontend: 5,
-    backend: 5,
-    infrastructure: 5,
-    systemDesign: 5,
-    database: 5,
-    security: 5,
-    devProcess: 5,
-  });
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const { saveProfile } = useStore();
-  const router = useRouter();
+  const handleProfileChange = (field: string, value: any) => {
+    saveProfile({ ...profile, [field]: value });
+  };
 
-  const handleComplete = async () => {
+  const handleSkillChange = (skill: string, value: number) => {
+    saveProfile({
+      ...profile,
+      skills: { ...profile.skills, [skill]: value }
+    });
+  };
+
+  const generateRoadmap = async () => {
     setIsGenerating(true);
     try {
-      const now = getCurrentDateISO();
-      const profile: UserProfile = {
-        role,
-        experienceYears: Number(experience),
-        goals,
-        skills,
-        hasCompletedOnboarding: true,
-        onboardingCompletedDate: now,
-        roadmapStartDate: now,
-      };
-
-      const res = await fetch("/api/gemini", {
+      // Step 1: Evaluate Skills
+      const evalRes = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "evaluate_skills", payload: profile }),
       });
-      const evaluation = await res.json();
+      const evaluation = await evalRes.json();
       
-      saveProfile({ ...profile, evaluation });
+      const updatedProfile = { 
+        ...profile, 
+        evaluation, 
+        hasCompletedOnboarding: true,
+        onboardingCompletedDate: getCurrentDateISO(),
+        roadmapStartDate: getCurrentDateISO()
+      };
+      await saveProfile(updatedProfile);
+
+      // Step 2: Generate Roadmap
+      const roadmapRes = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "generate_roadmap", payload: { profile: updatedProfile, months: 36 } }),
+      });
+      const roadmap = await roadmapRes.json();
+      await saveRoadmap(roadmap);
+
       router.push("/");
     } catch (e) {
       console.error(e);
-      // Fallback
-      const now = getCurrentDateISO();
-      saveProfile({
-        role,
-        experienceYears: Number(experience),
-        goals,
-        skills,
-        hasCompletedOnboarding: true,
-        onboardingCompletedDate: now,
-        roadmapStartDate: now,
-      });
-      router.push("/");
     }
+    setIsGenerating(false);
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto py-4 md:py-10 animate-fade-in px-2 sm:px-4">
-      <div className="flex items-center justify-center gap-3 mb-8 sm:mb-12">
-        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-indigo-600 rounded-xl flex items-center justify-center rotate-3 shadow-lg shadow-indigo-500/20">
-          <Compass className="text-white" size={24} />
+    <div className="max-w-4xl mx-auto py-12 px-4 font-jp">
+      <div className="flex items-center gap-4 mb-12">
+        <div className="w-12 h-12 bg-white text-black rounded-xl flex items-center justify-center font-black text-xl rotate-3">
+          {step}
         </div>
-        <h1 className="text-2xl sm:text-4xl font-black tracking-tight italic">AIエンジニアマネージャー診断</h1>
+        <div>
+          <h1 className="text-3xl font-black tracking-tighter italic uppercase text-white/90">
+            {step === 1 ? "Basic Profile / 基本プロファイル" : step === 2 ? "Skill Radar / 自己分析" : "Strategy / 成長戦略の構築"}
+          </h1>
+          <div className="flex gap-2 mt-2">
+            {[1, 2, 3].map(s => (
+              <div key={s} className={`h-1 w-12 rounded-full transition-all ${s <= step ? 'bg-indigo-500' : 'bg-white/10'}`} />
+            ))}
+          </div>
+        </div>
       </div>
 
-      <div className="glass-card p-6 sm:p-8 lg:p-10 transition-all">
-        <div className="flex justify-between items-center mb-8">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex flex-col items-center gap-2">
-              <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-black transition-all ${step >= s ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30" : "bg-white/5 text-slate-500 border border-white/10"}`}>
-                {step > s ? <CheckCircle2 size={16} /> : s}
-              </div>
-              <span className={`text-[10px] font-black uppercase tracking-widest ${step >= s ? "text-indigo-400" : "text-slate-600"}`}>
-                {s === 1 ? "Role" : s === 2 ? "Skills" : "Review"}
-              </span>
-            </div>
-          ))}
-          <div className="absolute h-[2px] bg-white/5 w-[60%] sm:w-[70%] left-[20%] sm:left-[15%] top-[108px] sm:top-[124px] -z-10" />
-        </div>
-
+      <div className="glass-card p-8 sm:p-12 animate-fade-in relative overflow-hidden">
+        <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/5 blur-[100px] pointer-events-none" />
+        
         {step === 1 && (
-          <div className="space-y-6 sm:space-y-8 animate-slide-up">
-            <div className="space-y-3">
-              <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">現在のロールまたは目指している職種</label>
-              <input 
-                type="text" 
-                placeholder="例: Senior Full-stack Engineer, SRE"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full p-4 sm:p-5 bg-black/40 border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition text-base sm:text-xl font-bold font-inter"
+          <div className="space-y-10">
+            <div className="space-y-4">
+              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Target size={16} className="text-indigo-400" /> 現在の職種・ロール
+              </label>
+              <input
+                type="text"
+                placeholder="例: フロントエンドエンジニア, Railsエンジニアなど"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                value={profile.role}
+                onChange={(e) => handleProfileChange("role", e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">エンジニア経験年数</label>
-                <input 
-                  type="number" 
-                  placeholder="3"
-                  value={experience}
-                  onChange={(e) => setExperience(e.target.value)}
-                  className="w-full p-4 sm:p-5 bg-black/40 border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition text-base sm:text-xl font-bold"
-                />
-              </div>
-              <div className="space-y-3">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-widest ml-1">現在の目標 (短期的)</label>
-                <input 
-                  type="text" 
-                  placeholder="例: AWS設計の習得"
-                  value={goals}
-                  onChange={(e) => setGoals(e.target.value)}
-                  className="w-full p-4 sm:p-5 bg-black/40 border border-white/10 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition text-base sm:text-xl font-bold"
-                />
-              </div>
+            <div className="space-y-4">
+              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Zap size={16} className="text-indigo-400" /> 経験年数
+              </label>
+              <input
+                type="number"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                value={profile.experienceYears}
+                onChange={(e) => handleProfileChange("experienceYears", parseInt(e.target.value))}
+              />
             </div>
-            <button 
-              onClick={() => setStep(2)} 
-              disabled={!role || !experience || !goals}
-              className="w-full py-4 sm:py-5 bg-white text-black rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-indigo-400 hover:text-white transition-all disabled:opacity-30 shadow-xl"
+            <div className="space-y-4">
+              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Target size={16} className="text-indigo-400" /> 今後の目標・ありたい姿
+              </label>
+              <textarea
+                placeholder="例: テックリードになりたい、フルスタックとして活躍したい"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all h-32"
+                value={profile.goals}
+                onChange={(e) => handleProfileChange("goals", e.target.value)}
+              />
+            </div>
+            <button
+              disabled={!profile.role || !profile.goals}
+              onClick={() => setStep(2)}
+              className="w-full py-5 bg-white text-black hover:bg-slate-200 disabled:opacity-20 rounded-2xl font-black text-xl transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-3 italic font-jp"
             >
-              次へ進む <ArrowRight size={20} />
+              次へ進む <ArrowRight size={24} />
             </button>
           </div>
         )}
 
         {step === 2 && (
-          <div className="space-y-8 animate-slide-up">
-            <div className="space-y-6">
-              {Object.keys(skills).map((s) => (
-                <div key={s} className="space-y-3">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-sm font-black capitalize text-slate-300">{s.replace(/([A-Z])/g, ' $1')}</label>
-                    <span className="text-sm font-black text-indigo-400 bg-indigo-400/10 px-2 py-0.5 rounded-md">LEVEL {skills[s as keyof typeof skills]}</span>
+          <div className="space-y-10">
+            <p className="text-slate-400 font-bold mb-8">現在のスキルを1（未経験）から10（エキスパート）で自己評価してください。</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
+              {Object.entries(profile.skills).map(([skill, value]) => (
+                <div key={skill} className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                      {skill === 'frontend' ? 'フロントエンド' : 
+                       skill === 'backend' ? 'バックエンド' : 
+                       skill === 'infrastructure' ? 'インフラ' : 
+                       skill === 'systemDesign' ? 'システム設計' : 
+                       skill === 'database' ? 'データベース' : 
+                       skill === 'security' ? 'セキュリティ' : '開発プロセス'}
+                    </label>
+                    <span className="text-2xl font-black text-indigo-400 italic">{value}</span>
                   </div>
-                  {/* Custom Slider for better mobile touch */}
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(val => (
-                       <button
-                         key={val}
-                         onClick={() => setSkills({ ...skills, [s]: val })}
-                         className={`h-10 sm:h-12 rounded-lg font-black text-xs sm:text-sm transition-all border ${
-                           skills[s as keyof typeof skills] === val 
-                             ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/30 scale-105" 
-                             : "bg-white/5 border-white/5 text-slate-500 hover:bg-white/10"
-                         }`}
-                       >
-                         {val}
-                       </button>
-                    ))}
-                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    className="w-full accent-indigo-500"
+                    value={value}
+                    onChange={(e) => handleSkillChange(skill, parseInt(e.target.value))}
+                  />
                 </div>
               ))}
             </div>
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <button onClick={() => setStep(1)} className="flex-1 py-4 sm:py-5 border border-white/10 rounded-2xl font-black text-slate-400 flex items-center justify-center gap-3 hover:bg-white/5">
-                <ArrowLeft size={20} /> 戻る
+            <div className="flex gap-4">
+              <button
+                onClick={() => setStep(1)}
+                className="flex-1 py-5 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black text-xl transition-all font-jp"
+              >
+                戻る
               </button>
-              <button onClick={() => setStep(3)} className="flex-[2] py-4 sm:py-5 bg-white text-black rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-emerald-400">
-                確認画面へ <CheckCircle2 size={20} />
+              <button
+                onClick={() => setStep(3)}
+                className="flex-[2] py-5 bg-white text-black hover:bg-slate-200 rounded-2xl font-black text-xl transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-3 italic font-jp"
+              >
+                分析を開始 <ArrowRight size={24} />
               </button>
             </div>
           </div>
         )}
 
         {step === 3 && (
-          <div className="space-y-8 animate-slide-up text-center">
-            <div className="py-10">
-              <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/30">
-                <Star className="text-emerald-400" size={40} />
-              </div>
-              <h2 className="text-3xl font-black mb-4 tracking-tight">AIマネージャーによる分析準備完了</h2>
-              <p className="text-slate-400 font-bold max-w-sm mx-auto">
-                入力されたスキルに基づき、あなた専用の成長戦略を生成し、ダッシュボードを最適化します。
-              </p>
+          <div className="flex flex-col items-center justify-center py-10 space-y-10">
+            <div className="relative">
+               <div className="w-32 h-32 bg-indigo-600/20 rounded-full flex items-center justify-center animate-pulse">
+                  <Rocket className="text-indigo-400" size={64} />
+               </div>
+               <div className="absolute -top-4 -right-4 w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-2xl animate-bounce">
+                  <Sparkles className="text-indigo-600" size={24} />
+               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button onClick={() => setStep(2)} className="flex-1 py-4 sm:py-5 border border-white/10 rounded-2xl font-black text-slate-400 flex items-center justify-center gap-3 hover:bg-white/5">
-                <ArrowLeft size={20} /> 修正する
-              </button>
-              <button 
-                onClick={handleComplete} 
-                disabled={isGenerating}
-                className="flex-[2] py-4 sm:py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg flex items-center justify-center gap-3 hover:bg-indigo-500 shadow-xl shadow-indigo-500/30 disabled:opacity-50"
-              >
-                {isGenerating ? <Loader2 size={24} className="animate-spin" /> : <ArrowRight size={24} />}
-                {isGenerating ? "分析中..." : "診断を開始しダッシュボードへ"}
-              </button>
+            
+            <div className="text-center space-y-4">
+               <h2 className="text-3xl font-black font-jp">成長戦略を構築しています</h2>
+               <p className="text-slate-400 font-bold max-w-sm font-jp">
+                  AIマネージャーがあなたのプロフィールを分析し、最適な36ヶ月のロードマップを作成しています。
+               </p>
             </div>
+
+            <button
+              onClick={generateRoadmap}
+              disabled={isGenerating}
+              className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl transition-all shadow-2xl shadow-indigo-600/40 flex items-center justify-center gap-4 italic disabled:opacity-50 font-jp"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="animate-spin" size={28} />
+                  AIが思考中...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={28} />
+                  ロードマップを作成して開始
+                </>
+              )}
+            </button>
           </div>
         )}
       </div>
