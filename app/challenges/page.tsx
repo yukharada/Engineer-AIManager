@@ -11,6 +11,14 @@ const getCategoryLabel = (cat: string) => {
   return map[cat] || cat;
 };
 
+// Simple UUID v4 generator
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 export default function Challenges() {
   const { profile, challenges, saveChallenges, reviewHistory } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
@@ -31,6 +39,7 @@ export default function Challenges() {
         const now = getCurrentDateISO();
         const challengesWithDates = data.map((c: any) => ({
           ...c,
+          id: generateUUID(), // Ensure a valid UUID is used for the database
           createdAt: now,
           deadline: getChallengeDeadline(now, 7),
         }));
