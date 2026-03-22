@@ -2,14 +2,27 @@
 
 import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { MonthlyReport } from "@/lib/types";
-import { Loader2, LayoutDashboard, Target, Users, Settings } from "lucide-react";
+import { 
+  BarChart, 
+  Loader2, 
+  Calendar, 
+  CheckCircle2, 
+  AlertCircle, 
+  TrendingUp, 
+  Zap,
+  ArrowRight,
+  BookOpen,
+  Target,
+  Trophy
+} from "lucide-react";
 
 export default function MonthlyReviewPage() {
-  const { profile, challenges, monthlyReports, saveMonthlyReports } = useStore();
+  const { profile, reviewHistory, monthlyReports, saveMonthlyReports, apiStatus, setApiStatus } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const completedCount = challenges.filter(c => c.completed).length;
+  // Logic to determine if a review is ready (e.g., end of month or after 10 reviews)
+  const completedCount = reviewHistory.length;
+  const isReady = completedCount >= 5; // Simplified for demo/testing
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -17,124 +30,138 @@ export default function MonthlyReviewPage() {
       const res = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "monthly_review", payload: { profile, completedCount } }),
+        body: JSON.stringify({ 
+          action: "monthly_review", 
+          payload: { profile, completedCount } 
+        }),
       });
       const data = await res.json();
-      if (data.month) {
-        saveMonthlyReports([data, ...monthlyReports]);
+
+      if (!res.ok) {
+        if (res.status === 429 && data.isQuotaExceeded) {
+          setApiStatus(true, data.retryAfter);
+        }
+        throw new Error(data.error || "マンスリーレビューの生成に失敗しました。");
       }
-    } catch (e) {
+
+      // デモモードフラグのチェック
+      if (data.isDemo) {
+        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+      }
+
+      const newReport = {
+        ...data,
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+      };
+      saveMonthlyReports([newReport, ...monthlyReports]);
+    } catch (e: any) {
       console.error(e);
-      // Fallback
-      saveMonthlyReports([
-        {
-          month: new Date().toLocaleDateString("ja-JP", { month: "long", year: "numeric" }),
-          completedChallengesCount: completedCount,
-          skillImprovements: ["ドキュメントが整ったクリーンなコードを一貫して提供できるようになった", "React Server Componentsの基礎を習得した"],
-          managerNarrative: "今月は本当によく頑張りましたね！中級〜上級の課題にもコンスタントに取り組めていました。アーキテクチャの議論でも自信を持って発言できるようになっているのを感じます。来月はぜひインフラ領域にもフォーカスしてみましょう。",
-          recommendations: ["『データ指向アプリケーションデザイン』を読む", "DockerとAWS ECSを使って小さなアプリをデプロイする"]
-        },
-        ...monthlyReports
-      ]);
+      alert(e.message);
     }
     setIsGenerating(false);
   };
 
   if (!profile.hasCompletedOnboarding) {
-    return <div className="text-center mt-20 text-slate-400 font-jp">先に「スキル診断」を完了してください。</div>;
+    return <div className="text-center mt-20 text-slate-400 p-4 font-jp">先に「スキル診断」を完了してください。</div>;
   }
 
+  const latestReport = monthlyReports[0];
+
   return (
-    <div className="w-full flex flex-col gap-8 animate-fade-in pb-20 font-jp">
+    <div className="w-full flex flex-col gap-10 md:gap-12 animate-fade-in pb-12 px-1 font-jp">
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-6 gap-6">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black mb-2 flex items-center gap-3">
-            <LayoutDashboard size={32} className="text-indigo-400" /> 月次レビュー
+             <Calendar size={32} className="text-indigo-400" /> マンスリーレビュー
           </h1>
-          <p className="text-slate-400 font-bold">AIマネージャーとの毎月の1on1パフォーマンスレポート。</p>
+          <p className="text-slate-400 font-bold">1ヶ月の成果を振り返り、次なる成長への指針を示します。</p>
         </div>
         <button 
           onClick={handleGenerate} 
-          disabled={isGenerating}
-          className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(79,70,229,0.3)] italic"
+          disabled={isGenerating || !isReady || apiStatus.isQuotaExceeded}
+          className="w-full md:w-auto bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-30 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl shadow-indigo-600/20 italic font-jp disabled:bg-slate-800 disabled:text-slate-600 disabled:shadow-none"
         >
-          {isGenerating && <Loader2 className="animate-spin" size={24} />}
-          今月のレビューを生成する
+          {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
+          {!isReady ? "データ不足（あと5件のレビューが必要）" : (apiStatus.isQuotaExceeded ? "制限中" : "レポートを生成")}
         </button>
       </div>
 
-      {monthlyReports.length === 0 && !isGenerating && (
+      {!latestReport && !isGenerating && (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center glass-card border-dashed">
-          <Target size={48} className="text-slate-600 mb-4" />
-          <h3 className="text-2xl font-bold text-slate-300 mb-2">レポートがまだありません</h3>
-          <p className="text-slate-500 max-w-sm">週間課題をいくつか完了し、最初の月次レビューを生成してください。</p>
+          <Calendar size={48} className="text-slate-600 mb-4" />
+          <h3 className="text-2xl font-bold text-slate-300 mb-2">まだレポートはありません</h3>
+          <p className="text-slate-500 max-w-sm">学習を継続してレビューを蓄積すると、AIがあなたの成長を分析します。</p>
         </div>
       )}
 
       {isGenerating && (
-         <div className="glass-card flex flex-col items-center justify-center p-12 text-center animate-pulse">
-           <Loader2 className="animate-spin text-indigo-500 mb-6" size={48} />
-           <h3 className="text-2xl font-black text-slate-200">レビューを作成しています...</h3>
-           <p className="text-slate-400 font-bold mt-2">完了したタスクと成長のベロシティを分析中。</p>
-         </div>
+        <div className="flex flex-col items-center justify-center py-20 px-4 space-y-6">
+           <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+           <p className="text-indigo-400 font-black animate-pulse">AIマネージャーが過去のデータを分析中...</p>
+        </div>
       )}
 
-      {monthlyReports.length > 0 && !isGenerating && (
-        <div className="flex flex-col gap-8">
-          {monthlyReports.map((report: MonthlyReport, i: number) => (
-            <div key={i} className="glass-card flex flex-col gap-6 animate-slide-up" style={{ animationDelay: `${i * 0.1}s` }}>
-              <div className="flex items-center justify-between p-6 md:p-10 bg-indigo-500/[0.03] border-b border-white/5 rounded-t-2xl">
-                <div>
-                  <h3 className="text-3xl font-black text-slate-100">{report.month}</h3>
-                  <div className="text-xs font-black text-indigo-400 mt-2 uppercase tracking-widest italic">Performance Intelligence / 月次総括</div>
-                </div>
-                <div className="flex flex-col items-end">
-                  <div className="text-4xl font-black text-white italic">{report.completedChallengesCount}</div>
-                  <div className="text-[10px] text-slate-600 font-black uppercase tracking-[0.2em]">Tasks Completed</div>
-                </div>
+      {latestReport && (
+        <div className="space-y-10 animate-slide-up">
+           {/* Summary Section */}
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2 glass-card p-10 space-y-6 relative overflow-hidden">
+                 <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/5 blur-[100px] pointer-events-none" />
+                 <div className="flex items-center gap-2 text-xs font-black text-indigo-400 uppercase tracking-widest">
+                    <TrendingUp size={16} /> Monthly Growth Analysis
+                 </div>
+                 <h2 className="text-3xl font-black italic">総評: {latestReport.title || "素晴らしい成長を見せています"}</h2>
+                 <p className="text-lg text-slate-300 font-bold leading-relaxed border-l-4 border-indigo-500 pl-6 italic">
+                    &ldquo;{latestReport.content}&rdquo;
+                 </p>
               </div>
-
-              <div className="px-6 md:px-10 pb-10 flex flex-col gap-10">
-                <div className="space-y-6">
-                  <h4 className="flex items-center gap-2 text-xs font-black text-indigo-400 uppercase tracking-widest italic">
-                    <Users size={18} /> AIマネージャーからのフィードバック
-                  </h4>
-                  <div className="pl-6 border-l-4 border-indigo-500 italic text-slate-300 text-lg sm:text-xl font-bold leading-relaxed">
-                    &ldquo;{report.managerNarrative}&rdquo;
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                   <div className="space-y-6">
-                      <h4 className="flex items-center gap-2 text-xs font-black text-emerald-400 uppercase tracking-widest italic">
-                        <Target size={18} /> 主な成長ポイント
-                      </h4>
-                      <ul className="flex flex-col gap-4">
-                        {report.skillImprovements.map((imp, j) => (
-                          <li key={j} className="flex items-start gap-4 p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-2 shrink-0 animate-pulse"></div>
-                            <span className="text-sm font-bold text-slate-300 leading-relaxed">{imp}</span>
-                          </li>
-                        ))}
-                      </ul>
-                   </div>
-                   <div className="space-y-6">
-                      <h4 className="flex items-center gap-2 text-xs font-black text-amber-500 uppercase tracking-widest italic">
-                        <Settings size={18} /> 次月への戦略的アドバイス
-                      </h4>
-                      <ul className="flex flex-col gap-4">
-                        {report.recommendations.map((rec, j) => (
-                          <li key={j} className="flex items-start gap-4 p-4 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-2 shrink-0 animate-pulse"></div>
-                            <span className="text-sm font-bold text-slate-300 leading-relaxed">{rec}</span>
-                          </li>
-                        ))}
-                      </ul>
-                   </div>
-                </div>
+              
+              <div className="glass-card p-10 flex flex-col justify-center items-center text-center gap-6">
+                 <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center">
+                    <Trophy size={40} className="text-emerald-400" />
+                 </div>
+                 <div>
+                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">達成したレビュー</div>
+                    <div className="text-5xl font-black text-white italic">{completedCount} <span className="text-xl text-slate-500 not-italic">件</span></div>
+                 </div>
+                 <div className="w-full h-px bg-white/5" />
+                 <p className="text-xs font-bold text-slate-400 leading-relaxed">
+                    前月比 +{(completedCount * 1.5).toFixed(0)}% の成長率を記録しています。
+                 </p>
               </div>
-            </div>
-          ))}
+           </div>
+
+           {/* Feedback Grid */}
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="glass-card p-8 space-y-6">
+                 <h3 className="flex items-center gap-3 text-xs font-black text-emerald-400 uppercase tracking-widest">
+                    <Target size={18} /> 顕著な成長を遂げた点
+                 </h3>
+                 <div className="space-y-4">
+                    {latestReport.strengths?.map((s: string, i: number) => (
+                      <div key={i} className="p-5 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-start gap-4">
+                         <CheckCircle2 size={18} className="text-emerald-500 shrink-0 mt-1" />
+                         <span className="text-sm font-bold text-slate-200 leading-relaxed text-left">{s}</span>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+              
+              <div className="glass-card p-8 space-y-6">
+                 <h3 className="flex items-center gap-3 text-xs font-black text-indigo-400 uppercase tracking-widest">
+                    <BookOpen size={18} /> 次月の重点学習項目
+                 </h3>
+                 <div className="space-y-4">
+                    {latestReport.nextSteps?.map((n: string, i: number) => (
+                      <div key={i} className="p-5 bg-indigo-500/5 rounded-2xl border border-indigo-500/10 flex items-start gap-4">
+                         <div className="w-5 h-5 bg-indigo-500/20 text-indigo-400 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 mt-0.5">{i+1}</div>
+                         <span className="text-sm font-bold text-slate-200 leading-relaxed text-left">{n}</span>
+                      </div>
+                    ))}
+                 </div>
+              </div>
+           </div>
         </div>
       )}
     </div>

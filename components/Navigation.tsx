@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  TrendingUp, 
-  Map as MapIcon, 
-  CheckSquare, 
-  Search, 
-  History, 
-  Layout, 
-  User, 
+import {
+  TrendingUp,
+  Map as MapIcon,
+  CheckSquare,
+  Search,
+  History,
+  Layout,
+  User,
   Database,
   Calendar,
-  LogOut
+  LogOut,
+  Settings,
+  LineChart // Added LineChart for analytics icon
 } from "lucide-react";
 
 export default function Navigation() {
@@ -24,7 +26,8 @@ export default function Navigation() {
     { href: "/roadmap", icon: <MapIcon size={20} />, label: "ロードマップ" },
     { href: "/history", icon: <History size={20} />, label: "レビュー履歴" },
     { href: "/monthly", icon: <Calendar size={20} />, label: "今月の振り返り" },
-    { href: "/analytics", icon: <TrendingUp size={20} />, label: "成長分析" },
+    { href: "/analytics", icon: <LineChart size={20} />, label: "成長分析" }, // Updated icon for analytics
+    { href: "/settings", icon: <Settings size={20} />, label: "設定" },
     { href: "/migrate", icon: <Database size={20} />, label: "データ移行" },
   ];
 

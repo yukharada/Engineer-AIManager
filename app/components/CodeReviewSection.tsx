@@ -38,7 +38,7 @@ interface CodeReviewSectionProps {
 }
 
 export default function CodeReviewSection({ challengeId }: CodeReviewSectionProps) {
-  const { profile, challenges, saveReviewHistory, completeCriteria } = useStore();
+  const { profile, challenges, saveReviewHistory, completeCriteria, apiStatus, setApiStatus } = useStore();
   const [code, setCode] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
   const [isReviewing, setIsReviewing] = useState(false);
@@ -97,6 +97,19 @@ export default function CodeReviewSection({ challengeId }: CodeReviewSectionProp
         }),
       });
       const result = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 429 && result.isQuotaExceeded) {
+          setApiStatus(true, result.retryAfter);
+        }
+        throw new Error(result.error || "レビューの取得に失敗しました。");
+      }
+
+      // デモモードフラグのチェック
+      if (result.isDemo) {
+        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+      }
+
       setReviewResult(result);
       
       const reviewItem = {
@@ -112,8 +125,9 @@ export default function CodeReviewSection({ challengeId }: CodeReviewSectionProp
       if (result.status === 'Approved' && challengeId && selectedCriteria.length > 0) {
         await completeCriteria(challengeId, selectedCriteria);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert(e.message);
     }
     setIsReviewing(false);
   };
@@ -349,11 +363,11 @@ export default function CodeReviewSection({ challengeId }: CodeReviewSectionProp
 
               <button
                 onClick={handleReview}
-                disabled={isReviewing || !code}
-                className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg tracking-tighter disabled:opacity-30 transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 italic font-jp"
+                disabled={isReviewing || !code || apiStatus.isQuotaExceeded}
+                className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg tracking-tighter disabled:opacity-30 transition-all shadow-xl shadow-indigo-600/20 flex items-center justify-center gap-3 italic font-jp disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
               >
                 {isReviewing ? <Loader2 className="animate-spin" size={24} /> : <MessageSquare size={24} />}
-                {isReviewing ? 'AIマネージャーが査読中...' : 'AIレビューを依頼する'}
+                {apiStatus.isQuotaExceeded ? "AI利用制限中" : (isReviewing ? 'AIマネージャーが査読中...' : 'AIレビューを依頼する')}
               </button>
            </div>
         </div>

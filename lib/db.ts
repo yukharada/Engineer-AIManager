@@ -261,3 +261,29 @@ export async function getMonthlyReports(): Promise<MonthlyReport[]> {
   
   return (data || []).map(r => r.content);
 }
+
+// =====================================
+// 全データ削除
+// =====================================
+
+export async function deleteAllData(): Promise<void> {
+  const tables = [
+    'user_profiles',
+    'roadmaps',
+    'challenges',
+    'review_history',
+    'monthly_reports'
+  ];
+
+  for (const table of tables) {
+    const { error } = await supabase
+      .from(table)
+      .delete()
+      .eq(table === 'user_profiles' ? 'id' : 'user_id', FIXED_USER_ID);
+
+    if (error) {
+      console.error(`${table} の削除中にエラーが発生しました:`, error);
+      // 一部の削除に失敗しても続行するが、エラーは記録する
+    }
+  }
+}

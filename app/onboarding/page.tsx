@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2, ChevronRight, Info } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2, ChevronRight, Info, AlertTriangle } from "lucide-react";
 import { createInitialSkillProgress } from "@/lib/types";
 import { getCurrentDateISO } from "@/lib/dateUtils";
 
@@ -41,7 +41,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     5: 'CI/CDパイプライン。GitHub Actions',
     6: 'Kubernetes基礎。オーケストレーション',
     7: 'クラウド設計（AWS/GCP）。VPC/IAM',
-    8: 'IaC（Terraform/CDK）の実践的経験',
+    8: 'IaC（Terraform/CDK）の実踐的経験',
     9: 'SRE。モニタリング・オートスケーリング',
     10: 'インフラエキスパート。マルチクラウド'
   },
@@ -106,7 +106,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function Onboarding() {
-  const { profile, saveProfile, saveRoadmap } = useStore();
+  const { profile, saveProfile, saveRoadmap, apiStatus, setApiStatus } = useStore();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -123,6 +123,23 @@ export default function Onboarding() {
     devProcess: 1,
   });
 
+  // Pre-fill skills if profile exists (re-diagnosis)
+  useEffect(() => {
+    if (profile && !profile.hasCompletedOnboarding && profile.role) {
+      const skills: Record<string, number> = {};
+      for (const cat in profile.skills) {
+        if (cat in CATEGORY_LABELS) {
+          const lvl = profile.skills[cat as keyof typeof profile.skills].level;
+          // Convert 100-scale level back to 1-10 scale for onboarding UI
+          skills[cat] = Math.max(1, Math.min(10, Math.floor(lvl / 10)));
+        }
+      }
+      if (Object.keys(skills).length > 0) {
+        setSelectedLevels(skills);
+      }
+    }
+  }, [profile]);
+
   const handleProfileChange = (field: string, value: any) => {
     saveProfile({ ...profile, [field]: value });
   };
@@ -130,7 +147,6 @@ export default function Onboarding() {
   const generateRoadmap = async () => {
     setIsGenerating(true);
     try {
-      // Convert flat levels to XP-based SkillScores (10x level)
       const skills: any = {};
       for (const cat in selectedLevels) {
         skills[cat] = createInitialSkillProgress(selectedLevels[cat] * 10);
@@ -144,11 +160,23 @@ export default function Onboarding() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "evaluate_skills", payload: currentProfile }),
       });
-      const evaluation = await evalRes.json();
+      const evalData = await evalRes.json();
+      
+      if (!evalRes.ok) {
+        if (evalRes.status === 429 && evalData.isQuotaExceeded) {
+          setApiStatus(true, evalData.retryAfter);
+        }
+        throw new Error(evalData.error || "スキル評価に失敗しました。");
+      }
+
+      // デモモードフラグのチェック
+      if (evalData.isDemo) {
+        setApiStatus(false, null, true);
+      }
       
       const updatedProfile = { 
         ...currentProfile, 
-        evaluation, 
+        evaluation: evalData, 
         hasCompletedOnboarding: true,
         onboardingCompletedDate: getCurrentDateISO(),
         roadmapStartDate: getCurrentDateISO()
@@ -161,14 +189,28 @@ export default function Onboarding() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "generate_roadmap", payload: { profile: updatedProfile, months: 36 } }),
       });
-      const roadmap = await roadmapRes.json();
-      await saveRoadmap(roadmap);
+      const roadmapData = await roadmapRes.json();
 
+      if (!roadmapRes.ok) {
+        if (roadmapRes.status === 429 && roadmapData.isQuotaExceeded) {
+          setApiStatus(true, roadmapData.retryAfter);
+        }
+        throw new Error(roadmapData.error || "ロードマップ生成に失敗しました。");
+      }
+
+      // ロードマップデータ内にもisDemoがあるかチェック
+      if (Array.isArray(roadmapData) && roadmapData.some((p: any) => p.isDemo)) {
+        setApiStatus(false, null, true);
+      }
+
+      await saveRoadmap(roadmapData);
       router.push("/");
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("[Onboarding] Fatal Error:", e);
+      alert("エラーが発生しました: " + e.message);
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   return (
@@ -208,24 +250,34 @@ export default function Onboarding() {
               <p className="text-[10px] text-slate-500 font-bold italic">💡 ヒント: 具体的に書くと、より適切なロードマップが生成されます</p>
             </div>
 
-            <div className="space-y-4">
-              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Zap size={16} className="text-indigo-400" /> エンジニア経験年数
-              </label>
-              <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(year => (
-                   <button
-                    key={year}
-                    onClick={() => handleProfileChange("experienceYears", year)}
-                    className={`h-14 rounded-xl font-black text-sm transition-all border ${
-                      profile.experienceYears === year 
-                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-lg shadow-indigo-600/30' 
-                        : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10'
-                    }`}
-                   >
-                     {year}
-                   </button>
-                ))}
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                  <Zap size={16} className="text-indigo-400" /> エンジニア経験年数
+                </label>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-black text-white italic">{profile.experienceYears}</span>
+                  <span className="text-xs font-black text-slate-500 uppercase">Years</span>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <input
+                  type="range"
+                  min="1"
+                  max="30"
+                  step="1"
+                  value={profile.experienceYears || 1}
+                  onChange={(e) => handleProfileChange("experienceYears", parseInt(e.target.value))}
+                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+                <div className="flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-tighter">
+                   <span>Junior (1y)</span>
+                   <span>Mid (5y)</span>
+                   <span>Senior (10y)</span>
+                   <span>Principal (20y)</span>
+                   <span>Legend (30y)</span>
+                </div>
               </div>
             </div>
 
@@ -353,11 +405,23 @@ export default function Onboarding() {
                </p>
             </div>
 
+            {apiStatus.isQuotaExceeded && (
+              <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl w-full text-center space-y-3">
+                <div className="flex items-center justify-center gap-2 text-red-500 font-black uppercase tracking-widest text-xs">
+                  <AlertTriangle size={16} /> API利用制限中です
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold leading-relaxed">
+                  現在、AIの利用制限がかかっているため、新しいロードマップの作成ができません。上部のバナーのカウントダウン終了後に再度お試しください。
+                </p>
+              </div>
+            )}
+
             <div className="w-full space-y-4">
               <button
+                id="generate-roadmap-button"
                 onClick={generateRoadmap}
-                disabled={isGenerating}
-                className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl transition-all shadow-2xl shadow-indigo-600/40 flex items-center justify-center gap-4 italic disabled:opacity-50 font-jp"
+                disabled={isGenerating || apiStatus.isQuotaExceeded}
+                className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl transition-all shadow-2xl shadow-indigo-600/40 flex items-center justify-center gap-4 italic disabled:opacity-50 disabled:bg-slate-800 disabled:shadow-none font-jp"
               >
                 {isGenerating ? (
                   <>

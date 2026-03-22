@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Compass, Calendar, CheckSquare, Code, LineChart, Clock } from "lucide-react";
+import { LayoutDashboard, Compass, Calendar, CheckSquare, Code, LineChart, Clock, Settings } from "lucide-react";
 
 export default function MobileNav() {
   const pathname = usePathname();
@@ -14,6 +14,7 @@ export default function MobileNav() {
     { href: "/history", label: "History", icon: Clock },
     { href: "/review", label: "Review", icon: Code },
     { href: "/analytics", label: "Analytics", icon: LineChart },
+    { href: "/settings", label: "Settings", icon: Settings },
   ];
 
   return (

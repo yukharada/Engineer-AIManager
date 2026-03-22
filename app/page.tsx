@@ -1,18 +1,19 @@
 "use client";
 
 import { useStore } from "@/lib/store";
-import { 
-  TrendingUp, 
-  Map as MapIcon, 
-  CheckSquare, 
-  Search, 
-  ArrowRight, 
-  Zap, 
-  Target, 
+import {
+  TrendingUp,
+  Map as MapIcon,
+  CheckSquare,
+  Search,
+  ArrowRight,
+  Zap,
+  Target,
   Sparkles,
   Award,
   Calendar,
-  ChevronRight
+  ChevronRight,
+  Settings
 } from "lucide-react";
 import Link from "next/link";
 import RadarChart from "@/app/components/RadarChart";
@@ -76,7 +77,7 @@ export default function Dashboard() {
           {/* Main XP Skills Display */}
           <div className="glass-card p-6 sm:p-10 flex flex-col gap-10 relative overflow-hidden group">
             <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-600/10 blur-[100px] pointer-events-none group-hover:bg-indigo-600/20 transition-all duration-700" />
-            
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">
@@ -91,6 +92,13 @@ export default function Dashboard() {
                  </div>
               </div>
             </div>
+
+            <Link
+              href="/settings"
+              className="mt-6 w-full py-4 bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl text-[10px] font-black text-slate-500 hover:text-indigo-400 transition-all uppercase tracking-[0.2em] flex items-center justify-center gap-2 font-jp"
+            >
+              <Settings size={14} /> プロフィールを編集
+            </Link>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
                {Object.entries(computedSkills).map(([cat, progress]) => (

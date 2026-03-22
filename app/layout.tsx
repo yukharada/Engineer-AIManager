@@ -5,6 +5,7 @@ import Navigation from "@/components/Navigation";
 import MobileNav from "@/components/MobileNav";
 import StoreLoader from "@/app/components/StoreLoader";
 import LevelUpModal from "@/app/components/LevelUpModal";
+import ApiStatusBanner from "@/components/ApiStatusBanner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="ja">
       <body className={`${inter.className} bg-[#0a0a0f] text-slate-200 overflow-x-hidden`}>
         <StoreLoader>
+          <ApiStatusBanner />
           <Navigation />
           <LevelUpModal />
           <main className="

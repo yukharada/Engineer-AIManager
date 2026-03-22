@@ -23,6 +23,7 @@ import {
   saveReviewHistory,
   getMonthlyReports,
   saveMonthlyReports,
+  deleteAllData,
 } from './db';
 
 const defaultProfile: UserProfile = {
@@ -52,6 +53,12 @@ interface LevelUpInfo {
   newLevel: number;
 }
 
+interface ApiStatus {
+  isQuotaExceeded: boolean;
+  retryAfter: string | null;
+  isDemoMode?: boolean; // AIエラーによりデモデータを使用している場合にtrue
+}
+
 interface StoreState {
   profile: UserProfile;
   challenges: Challenge[];
@@ -61,6 +68,11 @@ interface StoreState {
   isLoaded: boolean;
   isLoading: boolean;
   
+  // API Status
+  apiStatus: ApiStatus;
+  setApiStatus: (isQuotaExceeded: boolean, retryAfter: string | null, isDemoMode?: boolean) => void;
+  checkQuotaStatus: () => void;
+
   // Computed values
   computedSkills: SkillScores;
   totalGainedXp: number;
@@ -72,6 +84,7 @@ interface StoreState {
   // Actions
   loadData: () => Promise<void>;
   saveProfile: (profile: UserProfile) => Promise<void>;
+  updateProfile: (profile: UserProfile) => Promise<void>;
   saveChallenges: (challenges: Challenge[]) => Promise<void>;
   saveReviewHistory: (review: ReviewHistoryItem) => Promise<void>;
   saveRoadmap: (roadmap: RoadmapPhase[]) => Promise<void>;
@@ -121,7 +134,6 @@ const computeDerived = (profile: UserProfile, challenges: Challenge[], reviewHis
   return { computedSkills: skills, totalGainedXp };
 };
 
-// Check if a skill leveled up after an action
 const checkLevelUp = (oldSkills: SkillScores, newSkills: SkillScores): LevelUpInfo | null => {
   for (const key in newSkills) {
     const k = key as keyof SkillScores;
@@ -153,6 +165,26 @@ export const useStore = create<StoreState>((set, get) => ({
   totalGainedXp: 0,
   levelUpInfo: null,
   
+  apiStatus: {
+    isQuotaExceeded: false,
+    retryAfter: null,
+    isDemoMode: false
+  },
+
+  setApiStatus: (isQuotaExceeded, retryAfter, isDemoMode = false) => set({ 
+    apiStatus: { isQuotaExceeded, retryAfter, isDemoMode } 
+  }),
+
+  checkQuotaStatus: () => {
+    const { apiStatus } = get();
+    if (apiStatus.isQuotaExceeded && apiStatus.retryAfter) {
+      const retryTime = new Date(apiStatus.retryAfter).getTime();
+      if (Date.now() >= retryTime) {
+        set({ apiStatus: { isQuotaExceeded: false, retryAfter: null } });
+      }
+    }
+  },
+  
   setLevelUpInfo: (info) => set({ levelUpInfo: info }),
 
   loadData: async () => {
@@ -171,7 +203,7 @@ export const useStore = create<StoreState>((set, get) => ({
       const loadedHistory = reviewHistory || [];
       const loadedMonthly = monthlyReports || [];
 
-      // Migration: Handle old numeric skill scores
+      // Migration
       const migratedSkills = { ...loadedProfile.skills };
       let updated = false;
       for (const key in migratedSkills) {
@@ -208,6 +240,12 @@ export const useStore = create<StoreState>((set, get) => ({
     const { computedSkills, totalGainedXp } = computeDerived(profile, get().challenges, get().reviewHistory);
     set({ profile, computedSkills, totalGainedXp });
   },
+
+  updateProfile: async (profile: UserProfile) => {
+    await saveUserProfile(profile);
+    const { computedSkills, totalGainedXp } = computeDerived(profile, get().challenges, get().reviewHistory);
+    set({ profile, computedSkills, totalGainedXp });
+  },
   
   saveChallenges: async (challenges: Challenge[]) => {
     await saveChallenges(challenges);
@@ -221,7 +259,6 @@ export const useStore = create<StoreState>((set, get) => ({
     const nextHistory = [...get().reviewHistory, review];
     const { computedSkills, totalGainedXp } = computeDerived(get().profile, get().challenges, nextHistory);
     
-    // Check for level up
     const levelUp = checkLevelUp(oldComputed, computedSkills);
     
     set({ 
@@ -266,7 +303,6 @@ export const useStore = create<StoreState>((set, get) => ({
     const oldComputed = get().computedSkills;
     const { computedSkills, totalGainedXp } = computeDerived(get().profile, nextChallenges, get().reviewHistory);
     
-    // Check for level up
     const levelUp = checkLevelUp(oldComputed, computedSkills);
 
     set({ 
@@ -278,10 +314,7 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   resetAll: async () => {
-    await saveUserProfile(defaultProfile);
-    await saveChallenges([]);
-    await saveRoadmap([]);
-    await saveMonthlyReports([]);
+    await deleteAllData();
     set({
       profile: defaultProfile,
       challenges: [],

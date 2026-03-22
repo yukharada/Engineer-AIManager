@@ -20,7 +20,7 @@ function generateUUID() {
 }
 
 export default function Challenges() {
-  const { profile, challenges, saveChallenges, reviewHistory } = useStore();
+  const { profile, challenges, saveChallenges, reviewHistory, apiStatus, setApiStatus } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = async () => {
@@ -35,6 +35,19 @@ export default function Challenges() {
         }),
       });
       const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 429 && data.isQuotaExceeded) {
+          setApiStatus(true, data.retryAfter);
+        }
+        throw new Error(data.error || "課題の生成に失敗しました。");
+      }
+
+      // デモモードフラグのチェック
+      if (data.isDemo || (Array.isArray(data) && data.some((c: any) => c.isDemo))) {
+        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+      }
+
       if (Array.isArray(data)) {
         const now = getCurrentDateISO();
         const challengesWithDates = data.map((c: any) => ({
@@ -45,8 +58,9 @@ export default function Challenges() {
         }));
         saveChallenges(challengesWithDates);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert(e.message);
     }
     setIsGenerating(false);
   };
@@ -84,11 +98,11 @@ export default function Challenges() {
         </div>
         <button 
           onClick={handleGenerate} 
-          disabled={isGenerating}
-          className="w-full md:w-auto bg-white text-black hover:bg-slate-200 disabled:opacity-50 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] font-jp"
+          disabled={isGenerating || apiStatus.isQuotaExceeded}
+          className="w-full md:w-auto bg-white text-black hover:bg-slate-200 disabled:opacity-50 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] font-jp disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
         >
           {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-          {challenges.length > 0 ? "課題を再生成" : "課題を取得"}
+          {apiStatus.isQuotaExceeded ? "制限中" : (challenges.length > 0 ? "課題を再生成" : "課題を取得")}
         </button>
       </div>
 
@@ -148,7 +162,7 @@ export default function Challenges() {
                     </div>
                     <ul className="flex flex-col gap-4">
                       {c.acceptanceCriteria.map((ac, j) => {
-                        const isAcComplete = c.completedCriteria?.[j] || c.completed;
+                         const isAcComplete = c.completedCriteria?.[j] || c.completed;
                         return (
                           <li key={j} className="text-sm flex items-start gap-4 group/item">
                             <div className={`mt-0.5 shrink-0 transition-colors ${isAcComplete ? 'text-indigo-400' : 'text-slate-700 group-hover/item:text-slate-500'}`}>
@@ -163,12 +177,18 @@ export default function Challenges() {
                   
                   {!c.completed && (
                     <Link 
-                      href={`/review?challengeId=${c.id}`}
-                      className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm font-black transition-all group border font-jp ${overdue ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20'}`}
+                      href={apiStatus.isQuotaExceeded ? "#" : `/review?challengeId=${c.id}`}
+                      className={`w-full py-4 px-6 rounded-2xl flex items-center justify-center gap-3 text-sm font-black transition-all group border font-jp ${
+                        apiStatus.isQuotaExceeded 
+                        ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-50' 
+                        : overdue 
+                        ? 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20' 
+                        : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/20'
+                      }`}
                     >
                       <GitPullRequest size={18} />
-                      レビューを依頼する
-                      <ArrowRight size={18} className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all font-jp" />
+                      {apiStatus.isQuotaExceeded ? "制限中" : "レビューを依頼する"}
+                      <ArrowRight size={18} className={`transition-all font-jp ${apiStatus.isQuotaExceeded ? 'hidden' : 'opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0'}`} />
                     </Link>
                   )}
                 </div>
