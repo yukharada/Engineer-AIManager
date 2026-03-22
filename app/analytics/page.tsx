@@ -20,6 +20,7 @@ import {
   AlertCircle,
   Zap
 } from "lucide-react";
+import { SkillScores } from "@/lib/types";
 
 ChartJS.register(
   RadialLinearScale, 
@@ -44,14 +45,14 @@ const getCategoryLabel = (cat: string) => {
 };
 
 export default function Analytics() {
-  const { profile, reviewHistory } = useStore();
+  const { profile, computedSkills } = useStore();
 
   const radarData = {
-    labels: Object.keys(profile.skills).map(getCategoryLabel),
+    labels: Object.keys(computedSkills).map(getCategoryLabel),
     datasets: [
       {
-        label: "現在のスキル",
-        data: Object.values(profile.skills),
+        label: "現在のスキルレベル",
+        data: Object.values(computedSkills).map(s => s.level),
         backgroundColor: "rgba(99, 102, 241, 0.2)",
         borderColor: "rgba(99, 102, 241, 1)",
         borderWidth: 2,
@@ -66,9 +67,9 @@ export default function Analytics() {
         angleLines: { color: "rgba(255, 255, 255, 0.1)" },
         grid: { color: "rgba(255, 255, 255, 0.1)" },
         pointLabels: { color: "#94a3b8", font: { weight: 'bold', size: 10 } },
-        ticks: { display: false, stepSize: 2 },
+        ticks: { display: false, stepSize: 20 },
         min: 0,
-        max: 10,
+        max: 100,
       },
     },
     plugins: {
@@ -95,9 +96,9 @@ export default function Analytics() {
         <div className="glass-card p-6 sm:p-8 flex flex-col gap-6 items-center">
           <div className="w-full flex items-center justify-between mb-2">
              <h3 className="text-lg font-black flex items-center gap-3">
-              <Activity className="text-indigo-500" /> スキル分布マップ
+              <Activity className="text-indigo-500" /> スキル分布マップ (Lv.1 - 100)
             </h3>
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Current Profile</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Core Intelligence</span>
           </div>
           <div className="w-full h-[300px] sm:h-[400px]">
              <Radar data={radarData} options={radarOptions as any} />

@@ -1,7 +1,16 @@
 "use client";
 
 import { create } from 'zustand';
-import { UserProfile, RoadmapPhase, Challenge, ReviewHistoryItem, SkillScores, MonthlyReport } from './types';
+import { 
+  UserProfile, 
+  RoadmapPhase, 
+  Challenge, 
+  ReviewHistoryItem, 
+  SkillScores, 
+  MonthlyReport,
+  createInitialSkillProgress,
+  addXp
+} from './types';
 import {
   getUserProfile,
   saveUserProfile,
@@ -21,13 +30,13 @@ const defaultProfile: UserProfile = {
   experienceYears: 0,
   goals: "",
   skills: {
-    frontend: 1,
-    backend: 1,
-    infrastructure: 1,
-    systemDesign: 1,
-    database: 1,
-    security: 1,
-    devProcess: 1,
+    frontend: createInitialSkillProgress(1),
+    backend: createInitialSkillProgress(1),
+    infrastructure: createInitialSkillProgress(1),
+    systemDesign: createInitialSkillProgress(1),
+    database: createInitialSkillProgress(1),
+    security: createInitialSkillProgress(1),
+    devProcess: createInitialSkillProgress(1),
   },
   hasCompletedOnboarding: false,
   evaluation: {
@@ -37,6 +46,11 @@ const defaultProfile: UserProfile = {
     recommendedFocus: ""
   }
 };
+
+interface LevelUpInfo {
+  skill: string;
+  newLevel: number;
+}
 
 interface StoreState {
   profile: UserProfile;
@@ -49,7 +63,11 @@ interface StoreState {
   
   // Computed values
   computedSkills: SkillScores;
-  totalGainedPoints: number;
+  totalGainedXp: number;
+
+  // Level up UI state
+  levelUpInfo: LevelUpInfo | null;
+  setLevelUpInfo: (info: LevelUpInfo | null) => void;
 
   // Actions
   loadData: () => Promise<void>;
@@ -62,22 +80,65 @@ interface StoreState {
   resetAll: () => Promise<void>;
 }
 
-const computeDerived = (profile: UserProfile, challenges: Challenge[]) => {
-  const computedSkills = { ...profile.skills };
-  let totalGainedPoints = 0;
+const computeDerived = (profile: UserProfile, challenges: Challenge[], reviewHistory: ReviewHistoryItem[]) => {
+  const skills = JSON.parse(JSON.stringify(profile.skills)) as SkillScores;
+  let totalGainedXp = 0;
   
+  // 1. Add XP from completed challenges
   challenges.forEach(c => {
     if (c.completed && c.gainedSkills) {
+      const baseXp = c.difficulty === 'Advanced' ? 200 : c.difficulty === 'Intermediate' ? 100 : 50;
+      
       c.gainedSkills.forEach(gs => {
-        if (gs.category in computedSkills) {
-          computedSkills[gs.category as keyof SkillScores] = Math.min(10, computedSkills[gs.category as keyof SkillScores] + gs.points);
-          totalGainedPoints += gs.points;
+        if (gs.category in skills) {
+          const { progress } = addXp(skills[gs.category as keyof SkillScores], baseXp);
+          skills[gs.category as keyof SkillScores] = progress;
+          totalGainedXp += baseXp;
         }
       });
     }
   });
 
-  return { computedSkills, totalGainedPoints };
+  // 2. Add bonus XP from reviews
+  reviewHistory.forEach(h => {
+    if (h.result.status === 'Approved') {
+      const avgScore = Object.values(h.result.scores).reduce((a, b) => (a as number) + (b as number), 0) / 5;
+      const bonusXp = avgScore >= 9 ? 50 : avgScore >= 7 ? 30 : 10;
+      
+      const challenge = challenges.find(c => c.id === h.taskId);
+      if (challenge) {
+        challenge.gainedSkills.forEach(gs => {
+          if (gs.category in skills) {
+            const { progress } = addXp(skills[gs.category as keyof SkillScores], bonusXp);
+            skills[gs.category as keyof SkillScores] = progress;
+            totalGainedXp += bonusXp;
+          }
+        });
+      }
+    }
+  });
+
+  return { computedSkills: skills, totalGainedXp };
+};
+
+// Check if a skill leveled up after an action
+const checkLevelUp = (oldSkills: SkillScores, newSkills: SkillScores): LevelUpInfo | null => {
+  for (const key in newSkills) {
+    const k = key as keyof SkillScores;
+    if (newSkills[k].level > oldSkills[k].level) {
+      const labels: Record<string, string> = {
+        frontend: 'フロントエンド',
+        backend: 'バックエンド',
+        infrastructure: 'インフラ',
+        systemDesign: 'システム設計',
+        database: 'データベース',
+        security: 'セキュリティ',
+        devProcess: '開発プロセス'
+      };
+      return { skill: labels[k] || k, newLevel: newSkills[k].level };
+    }
+  }
+  return null;
 };
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -89,7 +150,10 @@ export const useStore = create<StoreState>((set, get) => ({
   isLoaded: false,
   isLoading: true,
   computedSkills: defaultProfile.skills,
-  totalGainedPoints: 0,
+  totalGainedXp: 0,
+  levelUpInfo: null,
+  
+  setLevelUpInfo: (info) => set({ levelUpInfo: info }),
 
   loadData: async () => {
     try {
@@ -102,18 +166,34 @@ export const useStore = create<StoreState>((set, get) => ({
         getMonthlyReports(),
       ]);
       
-      const loadedProfile = profile || defaultProfile;
+      let loadedProfile = profile || defaultProfile;
       const loadedChallenges = challenges || [];
-      const { computedSkills, totalGainedPoints } = computeDerived(loadedProfile, loadedChallenges);
+      const loadedHistory = reviewHistory || [];
+      const loadedMonthly = monthlyReports || [];
+
+      // Migration: Handle old numeric skill scores
+      const migratedSkills = { ...loadedProfile.skills };
+      let updated = false;
+      for (const key in migratedSkills) {
+        if (typeof (migratedSkills as any)[key] === 'number') {
+          (migratedSkills as any)[key] = createInitialSkillProgress((migratedSkills as any)[key] * 10);
+          updated = true;
+        }
+      }
+      if (updated) {
+        loadedProfile = { ...loadedProfile, skills: migratedSkills };
+      }
+
+      const { computedSkills, totalGainedXp } = computeDerived(loadedProfile, loadedChallenges, loadedHistory);
 
       set({
         profile: loadedProfile,
         challenges: loadedChallenges,
         roadmap: roadmap || [],
-        reviewHistory: reviewHistory || [],
-        monthlyReports: monthlyReports || [],
+        reviewHistory: loadedHistory,
+        monthlyReports: loadedMonthly,
         computedSkills,
-        totalGainedPoints,
+        totalGainedXp,
         isLoaded: true,
         isLoading: false,
       });
@@ -125,19 +205,31 @@ export const useStore = create<StoreState>((set, get) => ({
   
   saveProfile: async (profile: UserProfile) => {
     await saveUserProfile(profile);
-    const { computedSkills, totalGainedPoints } = computeDerived(profile, get().challenges);
-    set({ profile, computedSkills, totalGainedPoints });
+    const { computedSkills, totalGainedXp } = computeDerived(profile, get().challenges, get().reviewHistory);
+    set({ profile, computedSkills, totalGainedXp });
   },
   
   saveChallenges: async (challenges: Challenge[]) => {
     await saveChallenges(challenges);
-    const { computedSkills, totalGainedPoints } = computeDerived(get().profile, challenges);
-    set({ challenges, computedSkills, totalGainedPoints });
+    const { computedSkills, totalGainedXp } = computeDerived(get().profile, challenges, get().reviewHistory);
+    set({ challenges, computedSkills, totalGainedXp });
   },
   
   saveReviewHistory: async (review: ReviewHistoryItem) => {
     await saveReviewHistory(review);
-    set(state => ({ reviewHistory: [...state.reviewHistory, review] }));
+    const oldComputed = get().computedSkills;
+    const nextHistory = [...get().reviewHistory, review];
+    const { computedSkills, totalGainedXp } = computeDerived(get().profile, get().challenges, nextHistory);
+    
+    // Check for level up
+    const levelUp = checkLevelUp(oldComputed, computedSkills);
+    
+    set({ 
+      reviewHistory: nextHistory, 
+      computedSkills, 
+      totalGainedXp,
+      levelUpInfo: levelUp || get().levelUpInfo
+    });
   },
   
   saveRoadmap: async (roadmap: RoadmapPhase[]) => {
@@ -171,8 +263,18 @@ export const useStore = create<StoreState>((set, get) => ({
       c.id === challengeId ? { ...c, completedCriteria, completed: allMet, completedAt } : c
     );
 
-    const { computedSkills, totalGainedPoints } = computeDerived(get().profile, nextChallenges);
-    set({ challenges: nextChallenges, computedSkills, totalGainedPoints });
+    const oldComputed = get().computedSkills;
+    const { computedSkills, totalGainedXp } = computeDerived(get().profile, nextChallenges, get().reviewHistory);
+    
+    // Check for level up
+    const levelUp = checkLevelUp(oldComputed, computedSkills);
+
+    set({ 
+      challenges: nextChallenges, 
+      computedSkills, 
+      totalGainedXp,
+      levelUpInfo: levelUp || get().levelUpInfo
+    });
   },
 
   resetAll: async () => {
@@ -187,7 +289,8 @@ export const useStore = create<StoreState>((set, get) => ({
       reviewHistory: [],
       monthlyReports: [],
       computedSkills: defaultProfile.skills,
-      totalGainedPoints: 0,
+      totalGainedXp: 0,
+      levelUpInfo: null
     });
   }
 }));

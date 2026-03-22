@@ -25,7 +25,9 @@ import {
   HelpCircle,
   Lightbulb,
   FileCode,
-  Github
+  Github,
+  Loader2,
+  Search
 } from 'lucide-react';
 import Link from 'next/link';
 

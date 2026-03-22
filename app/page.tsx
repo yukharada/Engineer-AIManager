@@ -18,8 +18,18 @@ import Link from "next/link";
 import RadarChart from "@/app/components/RadarChart";
 import { formatDateJapanese, getCurrentDate } from "@/lib/dateUtils";
 
+const CATEGORY_LABELS: Record<string, string> = {
+  frontend: 'フロントエンド',
+  backend: 'バックエンド',
+  infrastructure: 'インフラ',
+  systemDesign: 'システム設計',
+  database: 'データベース',
+  security: 'セキュリティ',
+  devProcess: '開発プロセス'
+};
+
 export default function Dashboard() {
-  const { profile, roadmap, challenges, computedSkills, totalGainedPoints } = useStore();
+  const { profile, roadmap, challenges, computedSkills, totalGainedXp } = useStore();
 
   if (!profile.hasCompletedOnboarding) {
     return (
@@ -47,7 +57,7 @@ export default function Dashboard() {
       <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-6 gap-6 px-1">
         <div className="space-y-1">
           <h1 className="text-3xl sm:text-5xl font-black tracking-tighter italic">DASHBOARD / ダッシュボード</h1>
-          <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">成長インテリジェンス・システム v1.1</p>
+          <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">成長インテリジェンス・システム v1.2 (RPG Edition)</p>
         </div>
         <div className="flex items-center gap-4 bg-indigo-500/5 border border-indigo-500/10 rounded-2xl px-6 py-4">
           <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center">
@@ -63,48 +73,41 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Left Column: Analytics & Stats */}
         <div className="lg:col-span-2 flex flex-col gap-8">
-          {/* Main Skill Radar */}
-          <div className="glass-card p-6 sm:p-10 flex flex-col gap-8 relative overflow-hidden group">
+          {/* Main XP Skills Display */}
+          <div className="glass-card p-6 sm:p-10 flex flex-col gap-10 relative overflow-hidden group">
             <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-600/10 blur-[100px] pointer-events-none group-hover:bg-indigo-600/20 transition-all duration-700" />
             
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">
-                   <TrendingUp size={14} /> スキル分析プロファイル
+                   <TrendingUp size={14} /> スキル推移エクスプローラー
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-black">エンジニア・スキルマトリクス</h2>
-                <p className="text-sm text-slate-500 font-bold italic line-clamp-1">現在のスキル偏差値と今後の成長ポテンシャル</p>
+                <h2 className="text-2xl sm:text-3xl font-black">現在のスキルレベル & 経験値</h2>
               </div>
-              <div className="flex gap-4 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
-                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center min-w-[110px]">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">獲得ポイント</span>
-                    <span className="text-xl font-black text-emerald-400">+{totalGainedPoints}pt</span>
-                 </div>
-                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center min-w-[110px]">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">完了課題数</span>
-                    <span className="text-xl font-black text-indigo-400">{completedCount}</span>
+              <div className="flex gap-4 w-full sm:w-auto">
+                 <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col items-center flex-1 sm:min-w-[120px]">
+                    <span className="text-[10px] font-black text-slate-500 uppercase italic">Total Gained XP</span>
+                    <span className="text-2xl font-black text-emerald-400">+{totalGainedXp}</span>
                  </div>
               </div>
             </div>
 
-            <div className="w-full max-w-[300px] sm:max-w-[400px] mx-auto h-[250px] sm:h-[350px]">
-              <RadarChart data={computedSkills} />
-            </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 pt-4 border-t border-white/5">
-               {Object.entries(computedSkills).slice(0, 4).map(([cat, score]) => (
-                 <div key={cat} className="space-y-2">
-                    <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                      {cat === 'frontend' ? 'フロントエンド' : 
-                       cat === 'backend' ? 'バックエンド' : 
-                       cat === 'infrastructure' ? 'インフラ' : 
-                       cat === 'systemDesign' ? '設計' : cat}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500" style={{ width: `${score * 10}%` }} />
-                      </div>
-                      <span className="text-[10px] font-black text-slate-400">{score.toFixed(1)}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+               {Object.entries(computedSkills).map(([cat, progress]) => (
+                 <div key={cat} className="space-y-4">
+                    <div className="flex justify-between items-end">
+                       <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{CATEGORY_LABELS[cat] || cat}</span>
+                       <div className="text-right">
+                          <div className="text-2xl font-black text-white italic leading-none">Lv.{progress.level}</div>
+                          <div className="text-[10px] font-black text-slate-600 mt-1 uppercase italic">{progress.xp} / {progress.xpToNext} XP</div>
+                       </div>
+                    </div>
+                    <div className="relative h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/5 group/bar">
+                       <div 
+                         className="h-full bg-gradient-to-r from-indigo-600 to-purple-500 group-hover/bar:from-indigo-500 group-hover/bar:to-purple-400 transition-all duration-1000"
+                         style={{ width: `${(progress.xp / progress.xpToNext) * 100}%` }}
+                       />
+                       <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/bar:opacity-100 transition-opacity" />
                     </div>
                  </div>
                ))}

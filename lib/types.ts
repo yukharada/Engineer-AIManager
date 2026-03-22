@@ -1,61 +1,30 @@
-export interface UserProfile {
-  role: string;
-  experienceYears: number;
-  goals: string;
-  skills: SkillScores;
-  hasCompletedOnboarding: boolean;
-  onboardingCompletedDate?: string; // オンボーディング完了日（ISO 8601形式）
-  roadmapStartDate?: string;        // ロードマップ開始日（ISO 8601形式）
-  evaluation?: {
-    summary: string;
-    strengths: string[];
-    areasForImprovement: string[];
-    recommendedFocus: string;
-  };
-}
+export type Difficulty = 'Beginner' | 'Intermediate' | 'Advanced';
 
-export interface SkillScores {
-  frontend: number;
-  backend: number;
-  infrastructure: number;
-  systemDesign: number;
-  database: number;
-  security: number;
-  devProcess: number;
-}
-
-export interface RoadmapPhase {
-  period: string;
-  focus: string;
-  milestones: string[];
-  details: string;
+export interface GainedSkill {
+  category: keyof SkillScores;
+  points: number;
 }
 
 export interface Challenge {
   id: string;
   title: string;
   description: string;
+  difficulty: Difficulty;
   acceptanceCriteria: string[];
   completedCriteria?: Record<number, boolean>;
-  gainedSkills?: { category: keyof SkillScores; points: number }[];
-  difficulty: "Beginner" | "Intermediate" | "Advanced";
+  gainedSkills: GainedSkill[];
   completed: boolean;
-  createdAt: string;        // 作成日時（ISO 8601形式）
-  deadline?: string;        // 推奨完了期限（ISO 8601形式）
-  completedAt?: string;     // 完了日時（ISO 8601形式）
+  createdAt: string;
+  deadline?: string;
+  completedAt?: string;
 }
 
-export interface CodeReviewResult {
-  score: number;
-  approved: boolean;
-  summary: string;
-  categories: {
-    design: string;
-    naming: string;
-    performance: string;
-    security: string;
-    testing: string;
-  };
+export interface ReviewHistoryItem {
+  id: string;
+  taskId: string;
+  acceptanceCriteria: string;
+  result: ClaudeReviewResult;
+  timestamp: string;
 }
 
 export interface ClaudeReviewResult {
@@ -74,12 +43,47 @@ export interface ClaudeReviewResult {
   detectedStrengths: string[];
 }
 
-export interface ReviewHistoryItem {
-  id: string;
-  taskId: string;
-  acceptanceCriteria: string; // The title of the PR/criteria
-  result: ClaudeReviewResult; 
-  timestamp: string;
+export interface RoadmapPhase {
+  period: string;
+  focus: string;
+  milestones: string[];
+  details: string;
+}
+
+// =====================================
+// New RPG-style Skill System
+// =====================================
+
+export interface SkillProgress {
+  level: number;    // 1-100
+  xp: number;       // Current XP
+  xpToNext: number; // XP required for next level
+}
+
+export interface SkillScores {
+  frontend: SkillProgress;
+  backend: SkillProgress;
+  infrastructure: SkillProgress;
+  database: SkillProgress;
+  systemDesign: SkillProgress;
+  devProcess: SkillProgress;
+  security: SkillProgress;
+}
+
+export interface UserProfile {
+  role: string;
+  experienceYears: number;
+  goals: string;
+  skills: SkillScores;
+  hasCompletedOnboarding: boolean;
+  onboardingCompletedDate?: string;
+  roadmapStartDate?: string;
+  evaluation?: {
+    summary: string;
+    strengths: string[];
+    areasForImprovement: string[];
+    recommendedFocus: string;
+  };
 }
 
 export interface MonthlyReport {
@@ -88,4 +92,39 @@ export interface MonthlyReport {
   skillImprovements: string[];
   managerNarrative: string;
   recommendations: string[];
+}
+
+// RPG Logic Utils
+export function calculateXpForLevel(level: number): number {
+  return Math.floor(100 * Math.pow(1.1, level - 1));
+}
+
+export function createInitialSkillProgress(level: number, xp: number = 0): SkillProgress {
+  return {
+    level,
+    xp,
+    xpToNext: calculateXpForLevel(level)
+  };
+}
+
+export function addXp(current: SkillProgress, xpGained: number): { progress: SkillProgress; leveledUp: boolean; newLevel: number } {
+  let newXp = current.xp + xpGained;
+  let newLevel = current.level;
+  let leveledUp = false;
+
+  while (newXp >= calculateXpForLevel(newLevel) && newLevel < 100) {
+    newXp -= calculateXpForLevel(newLevel);
+    newLevel++;
+    leveledUp = true;
+  }
+
+  return {
+    progress: {
+      level: newLevel,
+      xp: newXp,
+      xpToNext: calculateXpForLevel(newLevel)
+    },
+    leveledUp,
+    newLevel
+  };
 }

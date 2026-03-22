@@ -9,7 +9,7 @@ export const PROMPTS = {
 職種: ${profile.role}
 経験年数: ${profile.experienceYears}年
 目標: ${profile.goals}
-現在の自己評価（1-10）: ${JSON.stringify(profile.skills)}
+現在のスキルレベル（1-100評価/経験値制）: ${JSON.stringify(profile.skills)}
 
 出力形式（必ず返却が必要な項目）:
 {
@@ -50,7 +50,7 @@ JSON形式の配列で回答し、各フェーズは概ね6ヶ月単位として
 
   generate_challenges: (profile: UserProfile, analysis?: any) => `
 あなたはAIエンジニアマネージャーです。
-以下のエンジニアの現在のスキルと${analysis ? "過去のレビュー分析結果" : "目標"}に基づいて、
+以下のエンジニアの現在のスキルレベル（1-100評価）と${analysis ? "過去のレビュー分析結果" : "目標"}に基づいて、
 今週挑戦すべき実践的なコーディング課題を3つ作成してください。
 
 エンジニアプロファイル:
@@ -60,13 +60,13 @@ ${analysis ? `過去のレビュー分析: ${JSON.stringify(analysis)}` : ""}
 
 課題は以下の条件を満たすようにしてください：
 1. 職種（${profile.role}）に即した実用的なもの
-2. スキルアップポイントが含まれていること
+2. スキルアップポイントが含まれていること。レベル100を目指す過程で適切な難易度（Beginner, Intermediate, Advanced）を選択してください。
 3. 単一のPRで完結できるよう、3〜5つの具体的な「達成条件（Acceptance Criteria）」を設定すること
 
 出力形式:
 [
   {
-    "id": "一意なID（UUID形式が好ましいが、 Geminiに任せても良い）",
+    "id": "一意なID（UUID形式が好ましい）",
     "title": "課題のタイトル",
     "description": "課題の背景と目的",
     "acceptanceCriteria": ["条件1", "条件2", "条件3..."],
@@ -78,7 +78,9 @@ ${analysis ? `過去のレビュー分析: ${JSON.stringify(analysis)}` : ""}
   ...
 ]
 
-必ず日本語で回答してください。
+注意:
+- gainedSkillsのpointsは現在内部的にXP計算（50, 100, 200）に使用されますが、便宜上1を設定してください。
+- 必ず日本語で回答してください。
 `,
 
   review_code: (code: string, challengeContext?: any, targetCriteriaIndices?: number[]) => `
@@ -117,7 +119,9 @@ ${code}
   "detectedStrengths": ["今回見つかった良い点、強み"]
 }
 
-必ず日本語で回答してください。
+注意:
+- Approved（合格）の場合、エンジニアにはボーナス経験値（XP）が付与されます。
+- 必ず日本語で回答してください。
 `,
 
   monthly_review: (profile: UserProfile, completedCount: number) => `

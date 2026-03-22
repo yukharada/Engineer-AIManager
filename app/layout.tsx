@@ -4,6 +4,7 @@ import "./globals.css";
 import Navigation from "@/components/Navigation";
 import MobileNav from "@/components/MobileNav";
 import StoreLoader from "@/app/components/StoreLoader";
+import LevelUpModal from "@/app/components/LevelUpModal";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-[#0a0a0f] text-slate-200 overflow-x-hidden`}>
         <StoreLoader>
           <Navigation />
+          <LevelUpModal />
           <main className="
             min-h-screen 
             md:ml-64 
