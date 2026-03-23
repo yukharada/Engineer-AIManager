@@ -107,7 +107,7 @@ export default function CodeReviewSection({ challengeId }: CodeReviewSectionProp
 
       // デモモードフラグのチェック
       if (result.isDemo) {
-        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+        setApiStatus(result.isQuotaExceeded || false, result.retryAfter || null, true);
       }
 
       setReviewResult(result);

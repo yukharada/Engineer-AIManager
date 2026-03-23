@@ -87,11 +87,16 @@ export interface UserProfile {
 }
 
 export interface MonthlyReport {
+  id: string;
+  timestamp: string;
   month: string;
-  completedChallengesCount: number;
-  skillImprovements: string[];
-  managerNarrative: string;
-  recommendations: string[];
+  title: string;
+  content: string;
+  strengths: string[];
+  nextSteps: string[];
+  isDemo?: boolean;
+  isQuotaExceeded?: boolean;
+  retryAfter?: string | null;
 }
 
 // RPG Logic Utils

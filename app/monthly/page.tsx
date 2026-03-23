@@ -46,13 +46,14 @@ export default function MonthlyReviewPage() {
 
       // デモモードフラグのチェック
       if (data.isDemo) {
-        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+        setApiStatus(data.isQuotaExceeded || false, data.retryAfter || null, true);
       }
 
       const newReport = {
         ...data,
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
+        month: new Date().toISOString().slice(0, 7), // YYYY-MM
       };
       saveMonthlyReports([newReport, ...monthlyReports]);
     } catch (e: any) {

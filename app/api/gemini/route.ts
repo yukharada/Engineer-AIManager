@@ -4,7 +4,6 @@ import { PROMPTS } from "@/lib/prompts";
 import { analyzeWeaknesses, identifyLowestScoreArea } from "@/lib/analytics";
 
 export async function POST(req: NextRequest) {
-  // スコープの問題を避けるため、関数の最上位で定義
   let apiAction: string = "unknown";
   let apiPayload: any = null;
 
@@ -15,7 +14,6 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     
-    // 1. APIキーがない場合はデモモード
     if (!apiKey) {
       console.log("[Gemini API] No API key found, returning demo data.");
       return getDemoResponse(apiAction, apiPayload);
@@ -23,22 +21,34 @@ export async function POST(req: NextRequest) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // ユーザーのリクエストに基づき gemini-2.0-flash を優先候補に追加
+    /**
+     * 最新のGeminiモデル候補リスト
+     * 2026年3月現在のGemini 2.5 / 3.x シリーズを含め、多面的なフォールバックを構成します。
+     */
     const MODEL_CANDIDATES = [
-      "gemini-2.0-flash",
-      "gemini-1.5-flash", 
-      "gemini-1.5-flash-latest", 
+      "gemini-3.1-flash",       // 最新のFlashモデル
+      "gemini-3.1-pro",         // 最新のProモデル
+      "gemini-2.5-flash",       // 2.5シリーズ
+      "gemini-2.5-pro",
+      "gemini-1.5-flash-latest", // 1.5系の安定版
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-002",
+      "gemini-2.0-flash",       // 前世代のFlash
       "gemini-pro"
     ];
     
     let lastError = null;
     let text = "";
+    let quotaErrorInfo = null;
 
-    // モデルを順番に試す
     for (const modelName of MODEL_CANDIDATES) {
       try {
+        console.log(`[Gemini API] Trying model: ${modelName} | Action: ${apiAction}`);
+        
+        // 明示的なモデルID指定
+        const modelId = modelName.startsWith("models/") ? modelName : `models/${modelName}`;
         const model = genAI.getGenerativeModel({ 
-          model: modelName, 
+          model: modelId, 
           generationConfig: { responseMimeType: "application/json" } 
         });
 
@@ -67,90 +77,92 @@ export async function POST(req: NextRequest) {
         else if (apiAction === "monthly_review") prompt = PROMPTS.monthly_review(apiPayload.profile, apiPayload.completedCount);
         else throw new Error("Invalid action");
 
-        console.log(`[Gemini API] Trying model: ${modelName} | Action: ${apiAction}`);
         const result = await model.generateContent(prompt);
         text = result.response.text();
         
-        if (text) break;
-      } catch (err: any) {
-        console.warn(`[Gemini API] Failed with ${modelName}:`, err.message);
-        lastError = err;
-        if (err.message?.includes("404") || err.message?.includes("not found")) {
-          continue;
+        if (text) {
+          console.log(`[Gemini API] Success with model: ${modelName}`);
+          break;
         }
-        // クォータエラーなどの場合はループを抜けてエラー処理へ
-        break; 
+      } catch (err: any) {
+        console.warn(`[Gemini API] Error logic for ${modelName}:`, err.message);
+        lastError = err;
+        
+        if (err.message?.includes("429") || err.message?.includes("quota")) {
+           let retryAfter = null;
+           const match = err.message?.match(/retry in ([\d\.]+)s/) || err.message?.match(/retryAfter: ([\d\.]+)s/);
+           if (match) {
+             const seconds = parseFloat(match[1]);
+             retryAfter = new Date(Date.now() + (seconds + 2) * 1000).toISOString();
+           } else {
+             retryAfter = new Date(Date.now() + 60 * 1000).toISOString();
+           }
+           quotaErrorInfo = { isQuotaExceeded: true, retryAfter };
+        }
+        continue;
       }
     }
 
-    if (!text && lastError) throw lastError;
+    if (!text && quotaErrorInfo) {
+       console.warn("[Gemini API] All models exhausted (Rate-limited). Returning demo fallback.");
+       return getDemoResponse(apiAction, apiPayload, quotaErrorInfo);
+    }
+
+    if (!text && lastError) {
+       return getDemoResponse(apiAction, apiPayload);
+    }
+
     if (!text) throw new Error("AIからの応答が空でした。");
 
     try {
         const parsed = JSON.parse(text);
         return NextResponse.json(parsed);
     } catch (parseError) {
+        console.error("[Gemini API] JSON Parse Error. Raw text:", text);
         const cleanText = text.replace(/```json\s?|\s?```/g, '').trim();
         return NextResponse.json(JSON.parse(cleanText));
     }
 
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    
-    const isQuotaError = error.message?.includes("429") || error.message?.includes("quota");
-    
-    if (isQuotaError) {
-      let retryAfter = null;
-      const match = error.message?.match(/retry in ([\d\.]+)s/);
-      if (match) {
-        const seconds = parseFloat(match[1]);
-        retryAfter = new Date(Date.now() + (seconds + 2) * 1000).toISOString();
-      } else {
-        retryAfter = new Date(Date.now() + 60 * 1000).toISOString();
-      }
-      
-      return NextResponse.json({ 
-        error: "API利用制限に達しました。", 
-        isQuotaExceeded: true,
-        retryAfter 
-      }, { status: 429 });
-    }
-
-    // デモデータへのフォールバック（isDemoフラグを付与）
-    console.warn("[Gemini API] Final Fallback to demo data.");
+    console.error("Gemini API Fatal Error:", error);
     return getDemoResponse(apiAction, apiPayload);
   }
 }
 
-function getDemoResponse(action: string, payload: any) {
-  let data: any = { isDemo: true }; // UI側で検知できるようフラグを追加
+/**
+ * デモ用レスポンス
+ */
+function getDemoResponse(action: string, payload: any, extraInfo: any = {}) {
+  let data: any = { isDemo: true, ...extraInfo };
   
   if (action === "evaluate_skills") {
     Object.assign(data, {
       summary: "バックエンドエンジニアとしての基礎がしっかりしており、さらなる高みを目指せるポテンシャルがあります。(DEMO)",
       strengths: ["プログラミング基礎", "論理的思考"],
-      areasForImprovement: ["クラウドインフラの実践経験", "分散システムの深い理解"],
+      areasForImprovement: ["クラウドインフラの実踐経験", "分散システムの深い理解"],
       recommendedFocus: "クラウドネイティブ技術とスケーラブルなシステム設計"
     });
   } else if (action === "generate_roadmap") {
-    data = [
+    data = (Array.isArray(data)) ? data : [
       {
         period: "1-6ヶ月目",
         focus: "クラウド基礎 & インフラ自動化 (DEMO)",
-        milestones: ["AWS SAA取得", "Terraformによる環境構築の実践"],
+        milestones: ["AWS SAA取得", "Terraformによる環境構築の実踐"],
         details: "クラウドサービスの基本からIaCによる自動化までを網羅します。",
-        isDemo: true
+        isDemo: true,
+        ...extraInfo
       },
       {
         period: "7-12ヶ月目",
         focus: "スケーラブルアーキテクチャ (DEMO)",
         milestones: ["マイクロサービス設計の実装", "分散メッセージングの導入"],
         details: "大規模トラフィックを支えるための設計と実装技術を学びます。",
-        isDemo: true
+        isDemo: true,
+        ...extraInfo
       }
     ];
   } else if (action === "generate_challenges") {
-    data = [
+    data = (Array.isArray(data)) ? data : [
       {
         id: "demo-task-1",
         title: "RESTful APIのパフォーマンス最適化 (DEMO)",
@@ -158,7 +170,8 @@ function getDemoResponse(action: string, payload: any) {
         acceptanceCriteria: ["クエリチューニングの実施", "キャッシュ戦略の導入", "N+1問題の解消"],
         difficulty: "Intermediate",
         gainedSkills: [{ category: "backend", points: 1 }],
-        isDemo: true
+        isDemo: true,
+        ...extraInfo
       }
     ];
   } else if (action === "review_code") {
@@ -170,6 +183,15 @@ function getDemoResponse(action: string, payload: any) {
       nextFocus: "より複雑な例外パターンの考慮",
       detectedWeaknesses: ["一部の境界値テストの不足"],
       detectedStrengths: ["一貫した非同期処理の実装"]
+    });
+  } else if (action === "monthly_review") {
+    Object.assign(data, {
+       title: "素晴らしい成長を見せています (DEMO)",
+       content: "この1ヶ月で、バックエンド開発におけるベストプラクティスを一貫して適用できるようになりました。課題の達成率も高く、エンジニアとしての基礎体力が向上しています。",
+       strengths: ["適切なエラーハンドリングの実写", "コードの可読性向上"],
+       nextSteps: ["分散トレーシングの導入検討", "負荷試験ツールの活用"],
+       isDemo: true,
+       ...extraInfo
     });
   }
 

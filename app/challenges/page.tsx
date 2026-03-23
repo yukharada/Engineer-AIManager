@@ -45,7 +45,8 @@ export default function Challenges() {
 
       // デモモードフラグのチェック
       if (data.isDemo || (Array.isArray(data) && data.some((c: any) => c.isDemo))) {
-        setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, true);
+        const first = Array.isArray(data) ? data[0] : data;
+        setApiStatus(first?.isQuotaExceeded || false, first?.retryAfter || null, true);
       }
 
       if (Array.isArray(data)) {

@@ -29,18 +29,25 @@ export default function ApiStatusBanner() {
     return () => clearInterval(timer);
   }, [apiStatus, checkQuotaStatus]);
 
-  // クォータ超過時のバナー
+  // クォータ超過時のバナー (優先表示)
   if (apiStatus.isQuotaExceeded) {
     return (
       <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down">
         <div className="bg-amber-500 text-black px-4 py-3 flex items-center justify-center gap-4 shadow-2xl">
           <AlertCircle size={20} className="shrink-0" />
           <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-4 text-center sm:text-left">
-            <span className="text-sm font-black uppercase tracking-tight">
-              AI利用制限中 (Quota Exceeded)
-            </span>
-            <span className="text-xs font-bold leading-tight opacity-90">
-              APIの無料枠制限に達しました。一部の機能が一時的に制限されます。
+            <div className="flex flex-col">
+              <span className="text-sm font-black uppercase tracking-tight">
+                AI利用制限中 (Quota Exceeded)
+              </span>
+              {apiStatus.isDemoMode && (
+                <span className="text-[10px] font-black bg-black/10 px-2 py-0.5 rounded mt-0.5 w-fit uppercase">
+                  ⚡ Demo Mode Fallback Active
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-bold leading-tight opacity-90 max-w-sm">
+              APIの無料枠制限に達しました。{apiStatus.isDemoMode ? "現在はデモデータで動作を継続しています。" : "一部の機能が一時的に制限されます。"}
             </span>
           </div>
           <div className="bg-black/10 px-3 py-1 rounded-full flex items-center gap-2 border border-black/10">
@@ -54,7 +61,7 @@ export default function ApiStatusBanner() {
     );
   }
 
-  // デモモード動作中のバナー
+  // デモモード動作中のバナー (接続エラーなどの場合)
   if (apiStatus.isDemoMode) {
     return (
       <div className="fixed top-0 left-0 right-0 z-[100] animate-slide-down">
@@ -69,7 +76,7 @@ export default function ApiStatusBanner() {
             </div>
           </div>
           <button 
-            onClick={() => setApiStatus(false, null, false)}
+            onClick={() => setApiStatus(apiStatus.isQuotaExceeded, apiStatus.retryAfter, false)}
             className="p-1 hover:bg-white/10 rounded-full transition-colors"
           >
             <X size={14} />

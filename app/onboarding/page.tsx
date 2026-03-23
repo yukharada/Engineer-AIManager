@@ -145,6 +145,7 @@ export default function Onboarding() {
   };
 
   const generateRoadmap = async () => {
+    setStep(3);
     setIsGenerating(true);
     try {
       const skills: any = {};
@@ -171,7 +172,7 @@ export default function Onboarding() {
 
       // デモモードフラグのチェック
       if (evalData.isDemo) {
-        setApiStatus(false, null, true);
+        setApiStatus(evalData.isQuotaExceeded || false, evalData.retryAfter || null, true);
       }
       
       const updatedProfile = { 
@@ -200,7 +201,7 @@ export default function Onboarding() {
 
       // ロードマップデータ内にもisDemoがあるかチェック
       if (Array.isArray(roadmapData) && roadmapData.some((p: any) => p.isDemo)) {
-        setApiStatus(false, null, true);
+        setApiStatus(roadmapData[0]?.isQuotaExceeded || false, roadmapData[0]?.retryAfter || null, true);
       }
 
       await saveRoadmap(roadmapData);
@@ -376,8 +377,8 @@ export default function Onboarding() {
               >
                 戻る
               </button>
-              <button
-                onClick={() => setStep(3)}
+              <button 
+                onClick={generateRoadmap}
                 className="flex-[2] py-5 bg-white text-black hover:bg-slate-200 rounded-2xl font-black text-xl transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-3 italic font-jp"
               >
                 分析を開始 <ArrowRight size={24} />
@@ -417,24 +418,22 @@ export default function Onboarding() {
             )}
 
             <div className="w-full space-y-4">
-              <button
-                id="generate-roadmap-button"
-                onClick={generateRoadmap}
-                disabled={isGenerating || apiStatus.isQuotaExceeded}
-                className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl transition-all shadow-2xl shadow-indigo-600/40 flex items-center justify-center gap-4 italic disabled:opacity-50 disabled:bg-slate-800 disabled:shadow-none font-jp"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="animate-spin" size={28} />
-                    AIが戦略を立案中...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={28} />
-                    ロードマップを作成して開始
-                  </>
-                )}
-              </button>
+              {isGenerating ? (
+                <div className="w-full py-6 bg-indigo-600/20 text-indigo-400 rounded-2xl font-black text-xl flex items-center justify-center gap-4 italic border border-indigo-500/30 font-jp">
+                  <Loader2 className="animate-spin" size={28} />
+                  AIが戦略を立案中...
+                </div>
+              ) : (
+                <button
+                  id="generate-roadmap-button"
+                  onClick={generateRoadmap}
+                  disabled={apiStatus.isQuotaExceeded}
+                  className="w-full py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl transition-all shadow-2xl shadow-indigo-600/40 flex items-center justify-center gap-4 italic disabled:opacity-50 disabled:bg-slate-800 disabled:shadow-none font-jp"
+                >
+                  <CheckCircle2 size={28} />
+                  ロードマップを再生成
+                </button>
+              )}
               <p className="text-[10px] text-slate-600 font-bold text-center italic tracking-widest">
                 Generating unique nodes for {profile.role}...
               </p>
