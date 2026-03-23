@@ -6,92 +6,93 @@ import { useRouter } from "next/navigation";
 import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2, ChevronRight, Info, AlertTriangle } from "lucide-react";
 import { createInitialSkillProgress } from "@/lib/types";
 import { getCurrentDateISO } from "@/lib/dateUtils";
+import { mapExperienceToLevel, initializeSkillProgress, getStageLabel } from "@/lib/levelMapping";
 
 // Level definitions for tooltips
 const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
   frontend: {
-    1: 'HTML/CSSの基礎。静的なページが作れる',
-    2: 'CSS設計（BEM等）。レスポンス対応',
-    3: 'JavaScript基礎。簡単なDOM操作',
-    4: 'JSイベント処理。APIからのデータ取得',
-    5: 'React/Vue等のフレームワーク経験',
-    6: 'SPA開発可能。状態管理の基礎',
-    7: 'Redux/Zustand等を用いた複雑な状態管理',
-    8: 'パフォーマンス最適化。レンダリング改善',
-    9: 'モダンアーキテクチャ設計。Next.js/Nuxt',
-    10: 'フロントエンドエキスパート。技術選定'
+    1: 'HTML/CSS基礎。構造とスタイルの理解',
+    2: '標準的な静的ページの作成経験',
+    3: 'JS基礎。DOM操作や基本的なイベント処理',
+    4: 'フレームワーク初学者。基礎チュートリアル完了',
+    5: 'フレームワークでの小規模コンポーネント開発',
+    6: '実務レベルのSPA開発。状態管理の初歩',
+    7: '複雑な状態管理やルーティング。実務経験2-3年',
+    8: 'パフォーマンス最適化やビルドパイプライン',
+    9: '大規模アーキテクチャ設計。Next.js/TS',
+    10: 'フロントエンドエキスパート。組織横断的な技術選定'
   },
   backend: {
-    1: '基本的なAPI概念。簡単なCRUD操作',
-    2: 'DB設計基礎。ER図が書ける',
-    3: 'REST API設計。基本的なDB連携',
-    4: 'ミドルウェア。バリデーション設計',
-    5: '認証・認可（JWT/OAuth）。セキュリティ基礎',
-    6: 'パフォーマンス改善。クエリ最適化',
-    7: 'マイクロサービス。メッセージキュー',
-    8: 'スケーラビリティ設計。分散システム基礎',
-    9: '高可用性アーキテクチャ。ドメイン駆動設計',
-    10: 'バックエンドエキスパート。言語仕様'
+    1: '学習中。APIの基本概念を理解',
+    2: '簡単なCRUD操作ができる',
+    3: 'REST API基礎。フレームワーク経験1年未満',
+    4: 'データベース連携。実務経験1-2年',
+    5: '認証・認可の実装。実務経験2-3年',
+    6: 'マイクロサービス設計の理解',
+    7: 'パフォーマンス最適化。実務経験5年+',
+    8: 'アーキテクチャ設計。分散システム',
+    9: 'スケーラブルシステム設計のエキスパート',
+    10: '大規模システムの設計・運用のマスター'
   },
   infrastructure: {
-    1: '基本的なサーバー概念。SSH接続',
-    2: 'Linux基礎コマンド。ファイル操作',
-    3: 'Docker基礎。コンテナ化の経験',
-    4: 'Webサーバー設定。Nginx/Apache',
-    5: 'CI/CDパイプライン。GitHub Actions',
-    6: 'Kubernetes基礎。オーケストレーション',
-    7: 'クラウド設計（AWS/GCP）。VPC/IAM',
-    8: 'IaC（Terraform/CDK）の実踐的経験',
-    9: 'SRE。モニタリング・オートスケーリング',
-    10: 'インフラエキスパート。マルチクラウド'
+    1: '基本概念。SSH接続やコマンド操作',
+    2: 'クラウドコンソールでの手動構築',
+    3: 'Docker基礎。Dockerfileの作成',
+    4: 'IaC基礎（Terraform等）。CI/CD初歩',
+    5: 'クラウド設計。実務でのインフラ構築',
+    6: 'Kubernetes等のコンテナ管理・運用',
+    7: 'SLI/SLOに基づくSRE。監視設計',
+    8: 'マルチクラウドアーキテクチャ設計',
+    9: '大規模インフラの信頼性向上エキスパート',
+    10: 'プラットフォームエンジニアリングの熟達者'
   },
   database: {
-    1: 'SQL基礎。SELECT/INSERT/UPDATE',
-    2: 'テーブル結合（JOIN）。基本的な抽出',
-    3: 'サブクエリ。複雑な検索条件',
-    4: 'インデックス。実行計画の確認',
-    5: 'パフォーマンスチューニング。正規化設計',
-    6: 'トランザクション制御。ACID特性理解',
-    7: 'レプリケーション。負荷分散設計',
-    8: 'シャーディング。分散データベース運用',
-    9: 'NoSQL。用途に応じたデータ選定',
-    10: 'DBエキスパート。内部構造・最適化'
+    1: 'SQL基礎。CRUDや基本的なJOIN',
+    2: '簡単なテーブル設計と制約の理解',
+    3: 'インデックス基礎。実行計画の初歩',
+    4: '正規化・非正規化。複雑な抽出クエリ',
+    5: 'クエリ最適化。実務でのパフォーマンス管理',
+    6: 'レプリケーション。可用性設計の理解',
+    7: 'シャーディング、分散DBの運用管理',
+    8: '大規模データ基盤設計。分析基盤',
+    9: 'データベース内部構造に精通。設計マスター',
+    10: 'DBスペシャリスト。DB自体の開発・貢献レベル'
   },
   systemDesign: {
-    1: '基本的なアーキテクチャパターン。3層構造',
-    2: 'クラス設計。SOLID原則の基礎',
-    3: 'デザインパターン適用。再利用性意識',
-    4: 'モジュール分割。インターフェース設計',
-    5: 'マイクロサービス設計。API境界確定',
-    6: '分散トランザクション。Sagaパターン',
-    7: 'スケーラブルシステム。CAP定理把握',
-    8: 'トレードオフ理解。アーキテクチャ比較',
-    9: '大規模分散システム。耐障害性設計',
-    10: 'システム設計エキスパート。全層技術'
+    1: '3層アーキテクチャ等の基本理解',
+    2: 'SOLID原則の概念的な理解',
+    3: 'デザインパターンの基礎適用',
+    4: 'モジュール結合度と凝集度の意識',
+    5: 'マイクロサービス等の分散設計の初歩',
+    6: '分散トランザクション・イベント駆動設計',
+    7: 'トレードオフの定量的判断。実務5年+',
+    8: '複雑なエンタープライズ設計の主導',
+    9: '業界標準のアーキテクチャ設計エキスパート',
+    10: '最高技術責任者レベルの設計洞察'
   },
   devProcess: {
-    1: 'Git基礎。コミット、プッシュ、ブランチ',
-    2: 'プルリクエスト。コンフリクト解消',
-    3: 'コードレビュー。品質維持の文化',
-    4: 'タスク管理。Scrum/Kanbanの理解',
-    5: 'CI/CD自動化。自動テストの導入',
-    6: 'DevOps。リリースパイプライン構築',
-    7: 'チームプロセス最適化。生産性計測',
-    8: 'エンジニア育成。ナレッジ共有文化',
-    9: '技術戦略立案。組織課題の技術解決',
-    10: 'CTO級。エンジニアリング組織文化'
+    1: 'Git基本操作。ブランチ、プルリク',
+    2: 'コードレビューの受領・基本的な指摘',
+    3: 'アジャイル・スクラムの基本用語理解',
+    4: 'CI自動化に向けたテストコード記述',
+    5: 'DevOpsの実践。デプロイ自動化主導',
+    6: 'スクラムマスター等のチーム開発リード',
+    7: '生産性指標の計測とプロセス改善',
+    8: '組織横断的な開発文化の醸成',
+    9: 'エンジニアリングマネジメントの熟達者',
+    10: 'エンジニアリング組織全体を率いるマスター'
   },
   security: {
-    1: '基本的な脆弱性理解。XSS/SQLi',
-    2: 'HTTPS。SSL/TLS証明書の概念',
-    3: '認証基礎。パスワードハッシュ化',
-    4: 'セキュアコーディング。OWASP Top 10',
-    5: 'OAuth/OpenID Connect。ID基盤構築',
-    6: '脆弱性診断。静的解析ツールの活用',
-    7: 'ペネトレーションテスト。攻撃検知',
-    8: 'セキュリティマネジメント。ISMS/PCI',
-    9: 'セキュアアーキテクチャ。零トラスト',
-    10: 'セキュリティスペシャリスト。インシデント'
+    1: '脆弱性の基本概念（XSS, SQLi）',
+    2: 'HTTPSや暗号化の基礎知識',
+    3: '認証・認可の標準的な実装',
+    4: 'OWASP Top 10に基づく対策',
+    5: 'セキュリティ診断ツールの導入・運用',
+    6: 'ID基盤（OAuth等）の設計・構築',
+    7: 'インシデントレスポンス。リスクアセスメント',
+    8: 'ゼロトラスト等のセキュア設計実践',
+    9: 'セキュリティアーキテクト。監査経験',
+    10: 'セキュリティスペシャリスト。研究家レベル'
   }
 };
 
@@ -144,13 +145,18 @@ export default function Onboarding() {
     saveProfile({ ...profile, [field]: value });
   };
 
+  const handleFinishOnboarding = async (updatedProfile: any) => {
+    await saveProfile(updatedProfile);
+    setStep(4); // Show summary screen
+  };
+
   const generateRoadmap = async () => {
     setStep(3);
     setIsGenerating(true);
     try {
       const skills: any = {};
       for (const cat in selectedLevels) {
-        skills[cat] = createInitialSkillProgress(selectedLevels[cat] * 10);
+        skills[cat] = initializeSkillProgress(selectedLevels[cat]);
       }
 
       const currentProfile = { ...profile, skills };
@@ -205,7 +211,7 @@ export default function Onboarding() {
       }
 
       await saveRoadmap(roadmapData);
-      router.push("/");
+      handleFinishOnboarding(updatedProfile);
     } catch (e: any) {
       console.error("[Onboarding] Fatal Error:", e);
       alert("エラーが発生しました: " + e.message);
@@ -222,10 +228,10 @@ export default function Onboarding() {
         </div>
         <div className="flex-1">
           <h1 className="text-2xl sm:text-3xl font-black tracking-tighter italic uppercase text-white/90">
-            {step === 1 ? "Profile / 基本プロファイル" : step === 2 ? "Analytic / 自己診断" : "Intelligence / 成長戦略の構築"}
+            {step === 1 ? "Profile / 基本プロファイル" : step === 2 ? "Analytic / 自己診断" : step === 3 ? "Intelligence / 戦略構築" : "Summary / 診断結果"}
           </h1>
           <div className="flex gap-2 mt-3">
-            {[1, 2, 3].map(s => (
+            {[1, 2, 3, 4].map(s => (
               <div key={s} className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${s <= step ? 'bg-indigo-500' : 'bg-white/10'}`} />
             ))}
           </div>
@@ -309,9 +315,26 @@ export default function Onboarding() {
 
         {step === 2 && (
           <div className="space-y-12 animate-slide-up">
-            <div className="space-y-2">
-              <p className="text-slate-200 text-lg font-bold font-jp">現在のレベルを1〜10で選択してください。</p>
-              <p className="text-slate-500 text-sm font-bold font-jp italic">ボタンにホバー/タップすると各レベルの定義が表示されます。</p>
+            <div className="space-y-4">
+              <h2 className="text-2xl font-black italic text-white font-jp uppercase">現在の経験度を選択してください</h2>
+              <p className="text-slate-400 font-bold font-jp leading-relaxed">
+                各技術の実務経験や習熟度を1-10で評価してください。<br />
+                これを元に、あなたに最適なレベルからスタートします。
+              </p>
+            </div>
+
+            <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-6 mb-8">
+               <div className="flex items-center gap-3 text-indigo-400 font-black text-xs uppercase tracking-widest mb-4">
+                  <Info size={16} /> 経験度の目安
+               </div>
+               <div className="space-y-3 text-sm font-bold text-slate-400 leading-relaxed">
+                  <p>1-3: 学習中・入門レベル → <span className="text-indigo-300">Lv.1-30</span> からスタート</p>
+                  <p>4-7: 実務経験あり・中級 → <span className="text-indigo-300">Lv.31-70</span> からスタート</p>
+                  <p>8-10: エキスパート・上級 → <span className="text-indigo-300">Lv.71-95</span> からスタート</p>
+                  <div className="mt-4 p-3 bg-purple-500/10 border border-purple-500/10 rounded-xl">
+                      <p className="text-xs text-purple-300 font-black tracking-tighter italic uppercase">🎯 Lv.100は全員の目標です！</p>
+                  </div>
+               </div>
             </div>
 
             <div className="space-y-16">
@@ -359,14 +382,21 @@ export default function Onboarding() {
                       ))}
                    </div>
                    
-                   {/* Visual Bar */}
-                   <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-500"
-                        style={{ width: `${selectedLevels[cat] * 10}%` }}
-                      />
-                   </div>
-                </div>
+                    {/* Visual Bar */}
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden mb-3">
+                       <div 
+                         className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-500"
+                         style={{ width: `${selectedLevels[cat] * 10}%` }}
+                       />
+                    </div>
+                    
+                    {/* Preview Label */}
+                    <div className="text-center">
+                       <p className="text-[10px] font-bold text-slate-500 italic">
+                         この経験度で、ゲーム内レベル <span className="text-indigo-400 font-black uppercase tracking-tighter">Lv.{mapExperienceToLevel(selectedLevels[cat])}</span> からスタートします
+                       </p>
+                    </div>
+                 </div>
               ))}
             </div>
 
@@ -438,6 +468,45 @@ export default function Onboarding() {
                 Generating unique nodes for {profile.role}...
               </p>
             </div>
+          </div>
+        )}
+        {step === 4 && (
+          <div className="flex flex-col items-center justify-center space-y-8 animate-slide-up py-6">
+             <div className="bg-gradient-to-br from-indigo-600/10 to-purple-600/10 border border-white/10 rounded-3xl p-8 sm:p-12 text-center w-full relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500" />
+                <Rocket size={48} className="text-indigo-400 mx-auto mb-6 animate-bounce" />
+                <h2 className="text-3xl font-black italic mb-2">DIAGNOSIS COMPLETE</h2>
+                <p className="text-slate-500 font-bold mb-10">あなたのスタートレベルが決定しました</p>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+                   {Object.entries(profile.skills).map(([cat, progress]) => (
+                     <div key={cat} className="glass-card p-4 flex flex-col items-center gap-1 border-white/5 bg-white/5">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-tighter">{CATEGORY_LABELS[cat]}</span>
+                        <div className="text-2xl font-black text-indigo-400 italic">Lv.{progress.level}</div>
+                        <span className={`text-[10px] font-black ${getStageLabel(progress.level).color} uppercase tracking-widest`}>
+                           {getStageLabel(progress.level).label}
+                        </span>
+                     </div>
+                   ))}
+                </div>
+
+                <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-2xl p-6 mb-10 text-left space-y-4">
+                   <p className="text-sm font-bold text-slate-300 flex items-start gap-4">
+                     <Target className="text-indigo-400 shrink-0 mt-1" size={18} />
+                     <span>
+                        <strong>目標:</strong> すべてのスキルを <span className="text-white">Lv.100</span> にすることが最終目標です！<br />
+                        日々の課題をクリアして経験値を獲得し、成長を可視化しましょう。
+                     </span>
+                   </p>
+                </div>
+
+                <button
+                  onClick={() => router.push("/")}
+                  className="w-full py-6 bg-white text-black hover:bg-slate-200 rounded-2xl font-black text-xl transition-all shadow-2xl flex items-center justify-center gap-4 italic font-jp"
+                >
+                  ダッシュボードへ <ArrowRight size={24} />
+                </button>
+             </div>
           </div>
         )}
       </div>

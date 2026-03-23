@@ -1,7 +1,7 @@
 {
-  "/roadmap/page": "app/roadmap/page.js",
   "/page": "app/page.js",
-  "/onboarding/page": "app/onboarding/page.js",
   "/challenges/page": "app/challenges/page.js",
+  "/roadmap/page": "app/roadmap/page.js",
+  "/onboarding/page": "app/onboarding/page.js",
   "/api/gemini/route": "app/api/gemini/route.js"
 }

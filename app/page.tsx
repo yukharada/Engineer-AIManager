@@ -18,6 +18,7 @@ import {
 import Link from "next/link";
 import RadarChart from "@/app/components/RadarChart";
 import { formatDateJapanese, getCurrentDate } from "@/lib/dateUtils";
+import { getStageLabel } from "@/lib/levelMapping";
 
 const CATEGORY_LABELS: Record<string, string> = {
   frontend: 'フロントエンド',
@@ -106,7 +107,12 @@ export default function Dashboard() {
                     <div className="flex justify-between items-end">
                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest">{CATEGORY_LABELS[cat] || cat}</span>
                        <div className="text-right">
-                          <div className="text-2xl font-black text-white italic leading-none">Lv.{progress.level}</div>
+                          <div className="flex items-center gap-2 justify-end">
+                             <div className="text-2xl font-black text-white italic leading-none">Lv.{progress.level}</div>
+                             <span className={`text-[8px] font-black ${getStageLabel(progress.level).color} uppercase tracking-tighter`}>
+                                {getStageLabel(progress.level).label}
+                             </span>
+                          </div>
                           <div className="text-[10px] font-black text-slate-600 mt-1 uppercase italic">{progress.xp} / {progress.xpToNext} XP</div>
                        </div>
                     </div>

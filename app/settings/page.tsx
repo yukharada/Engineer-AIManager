@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore } from '@/lib/store';
 import { Settings, User, Target, Brain, RotateCcw, Trash2, ChevronRight } from 'lucide-react';
+import { getStageLabel } from '@/lib/levelMapping';
 
 const CATEGORY_LABELS: Record<string, string> = {
   frontend: 'フロントエンド',
@@ -115,9 +116,14 @@ export default function SettingsPage() {
                 <div key={category} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex flex-col gap-2">
                   <div className="flex justify-between items-end">
                     <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{CATEGORY_LABELS[category] || category}</span>
-                    <span className="text-xl font-black text-white italic">
-                      Lv.{progress.level}
-                    </span>
+                    <div className="flex items-center gap-2">
+                       <span className="text-xl font-black text-white italic">
+                         Lv.{progress.level}
+                       </span>
+                       <span className={`text-[8px] font-black ${getStageLabel(progress.level).color} uppercase tracking-tighter`}>
+                          {getStageLabel(progress.level).label}
+                       </span>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                     <div 
