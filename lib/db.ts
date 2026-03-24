@@ -11,6 +11,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
     .upsert({
       id: FIXED_USER_ID,
       role: profile.role,
+      target_role: profile.targetRole || '',
       experience_years: profile.experienceYears,
       goals: profile.goals,
       skills: profile.skills,
@@ -19,6 +20,7 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
       has_completed_onboarding: profile.hasCompletedOnboarding,
       onboarding_completed_date: profile.onboardingCompletedDate || null,
       roadmap_start_date: profile.roadmapStartDate || null,
+      roadmap_duration: profile.roadmapDuration || 12,
       evaluation: profile.evaluation || null,
     }, {
       onConflict: 'id'
@@ -47,12 +49,14 @@ export async function getUserProfile(): Promise<UserProfile | null> {
   
   return {
     role: data.role,
+    targetRole: data.target_role || '',
     experienceYears: data.experience_years,
     goals: data.goals,
     skills: data.skills,
     hasCompletedOnboarding: data.has_completed_onboarding,
     onboardingCompletedDate: data.onboarding_completed_date,
     roadmapStartDate: data.roadmap_start_date,
+    roadmapDuration: data.roadmap_duration || 12,
     evaluation: data.evaluation,
   };
 }
@@ -89,7 +93,12 @@ export async function getRoadmap(): Promise<RoadmapPhase[] | null> {
     throw error;
   }
   
-  return data?.content || null;
+  if (!data?.content) return null;
+  // Handle new structure { totalMonths, phases } vs old direct array
+  if (data.content.phases && Array.isArray(data.content.phases)) {
+    return data.content.phases;
+  }
+  return Array.isArray(data.content) ? data.content : null;
 }
 
 // =====================================
@@ -125,6 +134,7 @@ export async function saveChallenges(challenges: Challenge[]): Promise<void> {
         created_at: c.createdAt,
         deadline: c.deadline || null,
         completed_at: c.completedAt || null,
+        phase: c.phase || null,
       }))
     );
   
@@ -158,6 +168,7 @@ export async function getChallenges(): Promise<Challenge[]> {
     createdAt: c.created_at,
     deadline: c.deadline,
     completedAt: c.completed_at,
+    phase: c.phase,
   }));
 }
 

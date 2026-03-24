@@ -28,8 +28,10 @@ import {
 
 const defaultProfile: UserProfile = {
   role: "",
+  targetRole: "",
   experienceYears: 0,
   goals: "",
+  roadmapDuration: 12,
   skills: {
     frontend: createInitialSkillProgress(1),
     backend: createInitialSkillProgress(1),

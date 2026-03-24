@@ -44,7 +44,7 @@ export function getRoadmapStartDate(onboardingCompletedDate?: string): Date {
 }
 
 /**
- * ロードマップの現在フェーズを計算
+ * ロードマップの現在フェーズを計算（可変期間対応）
  * @param startDate ロードマップ開始日
  * @param totalMonths ロードマップの総期間（月数）
  * @returns 現在のフェーズ（例: "1-6ヶ月目"）
@@ -54,14 +54,21 @@ export function getCurrentRoadmapPhase(startDate: Date | string, totalMonths: nu
   const now = getCurrentDate();
   const monthsPassed = differenceInMonths(now, start) + 1; // 1ヶ月目から開始
   
-  if (monthsPassed <= 6) return '1-6ヶ月目';
-  if (monthsPassed <= 12) return '7-12ヶ月目';
-  if (monthsPassed <= 18) return '13-18ヶ月目';
-  if (monthsPassed <= 24) return '19-24ヶ月目';
-  if (monthsPassed <= 30) return '25-30ヶ月目';
-  if (monthsPassed <= 36) return '31-36ヶ月目';
+  // フェーズ数を期間に応じて動的に計算
+  // 3-6ヶ月: 3ヶ月フェーズ
+  // 12ヶ月: 3ヶ月フェーズ(4つ)
+  // 18-24ヶ月以上: 4-6ヶ月フェーズ
+  const phaseCount = totalMonths <= 6 ? 2 : totalMonths <= 12 ? 4 : 6;
+  const monthsPerPhase = Math.ceil(totalMonths / phaseCount);
   
-  return '完了'; // 36ヶ月を超えた場合
+  const currentPhaseNumber = Math.ceil(monthsPassed / monthsPerPhase);
+  
+  if (currentPhaseNumber > phaseCount) return '完了';
+  
+  const phaseStart = (currentPhaseNumber - 1) * monthsPerPhase + 1;
+  const phaseEnd = Math.min(currentPhaseNumber * monthsPerPhase, totalMonths);
+  
+  return `${phaseStart}-${phaseEnd}ヶ月目`;
 }
 
 /**

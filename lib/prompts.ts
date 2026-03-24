@@ -6,7 +6,8 @@ export const PROMPTS = {
 以下のプロフィール情報に基づいて、エンジニアの現状を分析し、JSONフォーマットで回答してください。
 
 プロフィール:
-職種: ${profile.role}
+職種（現在）: ${profile.role}
+目指しているロール: ${profile.targetRole || '未設定'}
 経験年数: ${profile.experienceYears}年
 目標: ${profile.goals}
 現在のスキルレベル（1-100評価/経験値制）: ${JSON.stringify(profile.skills)}
@@ -25,62 +26,117 @@ export const PROMPTS = {
 `,
 
   generate_roadmap: (profile: UserProfile, months: number = 36) => `
-あなたはAIエンジニアマネージャーです。
-以下のエンジニアに対して、${months}ヶ月間の成長ロードマップを作成してください。
+あなたは経験豊富なエンジニアリングマネージャーです。
+以下のプロフィールに基づいて、${months}ヶ月の学習ロードマップを生成してください。
 
-エンジニアプロファイル:
-${JSON.stringify(profile)}
+# ユーザープロフィール
+- 現在のロール: ${profile.role}
+- 目指しているロール: ${profile.targetRole || '未設定'}
+- 経験年数: ${profile.experienceYears}年
+- 目標: ${profile.goals}
+- 現在のスキルレベル: ${JSON.stringify(profile.skills)}
+- 学習期間: ${months}ヶ月
 
-各フェーズごとのマイルストーン、学習内容、実践すべき課題を以下のJSON形式で回答してください。
-JSON形式の配列で回答し、各フェーズは概ね6ヶ月単位としてください。
+# ロードマップ生成の指示
+1. **期間に応じたフェーズ分割**:
+   - 3-6ヶ月: 2-3フェーズ（各2-3ヶ月）
+   - 12ヶ月: 4フェーズ（各3ヶ月）
+   - 18-24ヶ月: 6フェーズ（各3-4ヶ月）
+   - 36ヶ月: 6フェーズ（各6ヶ月）
 
-出力形式:
-[
-  {
-    "period": "1-6ヶ月目",
-    "focus": "この期間の学習テーマ（例: フロントエンドの基礎固め）",
-    "milestones": ["具体的な達成指標1", "達成指標2"],
-    "details": "詳細な学習アドバイスや推奨技術スタック"
-  },
-  ...
-]
+2. **各フェーズの構成**:
+   - フェーズ名（例: "1-3ヶ月目: 基礎固め"）
+   - 学習目標
+   - 重点技術スタック (focusAreas)
+   - マイルストーン（資格、成果物など）
+   - 推奨課題テーマ (recommendedChallenges): 各フェーズで取り組むべき具体的な課題案を2-3個
+
+3. **目標との整合性**:
+   - ユーザーの目標「${profile.goals}」に直接結びつく内容
+   - 現在のスキルレベルから無理なく成長できる計画
+
+出力形式（JSONのみ）:
+{
+  "totalMonths": ${months},
+  "phases": [
+    {
+      "phaseNumber": 1,
+      "period": "1-3ヶ月目",
+      "focus": "基礎固めとSpring Cloud入門",
+      "goals": ["...", "..."],
+      "focusAreas": ["Spring Boot", "Docker", "AWS基礎"],
+      "milestones": ["AWS SAA取得", "マイクロサービス構築"],
+      "recommendedChallenges": [
+        "商品管理マイクロサービス構築",
+        "Spring Cloud Configサーバー実装"
+      ],
+      "details": "詳細なアドバイス..."
+    },
+    ...
+  ]
+}
 
 必ず日本語で回答してください。
 `,
 
-  generate_challenges: (profile: UserProfile, analysis?: any) => `
-あなたはAIエンジニアマネージャーです。
-以下のエンジニアの現在のスキルレベル（1-100評価）と${analysis ? "過去のレビュー分析結果" : "目標"}に基づいて、
-今週挑戦すべき実践的なコーディング課題を3つ作成してください。
+  generate_challenges: (profile: UserProfile, phaseInfo?: any, reviewAnalysis?: any) => `
+あなたは経験豊富なエンジニアリングマネージャーです。
+以下の情報に基づいて、今週取り組むべき「課題（Task）」を1つ生成してください。
 
-エンジニアプロファイル:
-${JSON.stringify(profile)}
+# ユーザープロフィール
+- 現在のロール: ${profile.role}
+- 目指しているロール: ${profile.targetRole || '未設定'}
+- 現在のスキルレベル: ${JSON.stringify(profile.skills)}
+- 目標: ${profile.goals}
 
-${analysis ? `過去のレビュー分析: ${JSON.stringify(analysis)}` : ""}
+${phaseInfo ? `
+# ロードマップの現在地
+- フェーズ: ${phaseInfo.period}「${phaseInfo.focus}」
+- 学習目標: ${phaseInfo.goals?.join(', ') || phaseInfo.focus}
+- 重点技術: ${phaseInfo.focusAreas?.join(', ') || '特になし'}
+- 推奨課題テーマ: ${phaseInfo.recommendedChallenges?.join(', ') || '特になし'}
+` : ''}
 
-課題は以下の条件を満たすようにしてください：
-1. 職種（${profile.role}）に即した実用的なもの
-2. スキルアップポイントが含まれていること。レベル100を目指す過程で適切な難易度（Beginner, Intermediate, Advanced）を選択してください。
-3. 単一のPRで完結できるよう、3〜5つの具体的な「達成条件（Acceptance Criteria）」を設定すること
+${reviewAnalysis ? `
+# 過去のレビュー分析（弱点を補強）
+- 頻出の弱点: ${reviewAnalysis.weaknesses?.join(', ') || '特になし'}
+- 平均スコアが低い領域: ${reviewAnalysis.lowestArea || '特になし'}
+` : ''}
 
-出力形式:
-[
-  {
-    "id": "一意なID（UUID形式が好ましい）",
-    "title": "課題のタイトル",
-    "description": "課題の背景と目的",
-    "acceptanceCriteria": ["条件1", "条件2", "条件3..."],
-    "difficulty": "Beginner" | "Intermediate" | "Advanced",
-    "gainedSkills": [
-      { "category": "frontend" | "backend" | "infrastructure" | "systemDesign" | "database" | "security" | "devProcess", "points": 1 }
-    ]
-  },
-  ...
-]
+# 課題生成の指示
+1. **ロードマップとの整合性**:
+   ${phaseInfo ? `- 現在フェーズ「${phaseInfo.focus}」の重点技術を含める
+   - 推奨課題テーマから1つ選ぶか、類似の課題を生成` : '- ユーザーの目標に沿った内容'}
 
-注意:
-- gainedSkillsのpointsは現在内部的にXP計算（50, 100, 200）に使用されますが、便宜上1を設定してください。
-- 必ず日本語で回答してください。
+2. **過去のレビュー結果を反映**:
+   - 弱点として指摘された領域を強化する要素を含める
+
+3. **実践的な内容**:
+   - 実務に近い設計・実装課題
+   - PR単位（6-12個）の受け入れ条件（acceptanceCriteria）に分割
+
+4. **適切な難易度**:
+   - 現在のスキルレベルから、少し背伸びする程度
+   - 1週間で完了できるボリューム
+
+出力形式（JSONのみ）:
+{
+  "title": "課題のタイトル",
+  "description": "詳細な説明（200-400文字）",
+  "difficulty": "Beginner" | "Intermediate" | "Advanced",
+  "acceptanceCriteria": [
+    "設計のポイント",
+    "実装のポイント",
+    ... 6-12個
+  ],
+  "gainedSkills": [
+    { "category": "backend", "points": 1.5 },
+    { "category": "database", "points": 0.8 }
+  ],
+  "learningGoal": "この課題で何を学ぶか（1-2文）"
+}
+
+必ず日本語で回答してください。
 `,
 
   review_code: (code: string, challengeContext?: any, targetCriteriaIndices?: number[]) => `

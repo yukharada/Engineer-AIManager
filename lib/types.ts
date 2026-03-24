@@ -17,6 +17,7 @@ export interface Challenge {
   createdAt: string;
   deadline?: string;
   completedAt?: string;
+  phase?: string; // どのフェーズの課題か（例: "1-3ヶ月目"）
 }
 
 export interface ReviewHistoryItem {
@@ -46,8 +47,16 @@ export interface ClaudeReviewResult {
 export interface RoadmapPhase {
   period: string;
   focus: string;
+  goals: string[];
   milestones: string[];
   details: string;
+  focusAreas: string[];
+  recommendedChallenges: string[];
+}
+
+export interface Roadmap {
+  totalMonths: number;
+  phases: RoadmapPhase[];
 }
 
 // =====================================
@@ -71,9 +80,11 @@ export interface SkillScores {
 }
 
 export interface UserProfile {
-  role: string;
+  role: string;        // 現在のロール
+  targetRole: string;  // 目指しているロール
   experienceYears: number;
   goals: string;
+  roadmapDuration: number;
   skills: SkillScores;
   hasCompletedOnboarding: boolean;
   onboardingCompletedDate?: string;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PROMPTS } from "@/lib/prompts";
 import { analyzeWeaknesses, identifyLowestScoreArea } from "@/lib/analytics";
+import { getCurrentRoadmapPhase } from "@/lib/dateUtils";
 
 export async function POST(req: NextRequest) {
   let apiAction: string = "unknown";
@@ -71,7 +72,18 @@ export async function POST(req: NextRequest) {
           }
           
           const userProfile = profile || apiPayload;
-          prompt = PROMPTS.generate_challenges(userProfile, analysis);
+          
+          // ロードマップの現在フェーズを取得
+          let phaseInfo = undefined;
+          if (apiPayload.roadmap && Array.isArray(apiPayload.roadmap)) {
+            const currentPhaseRange = getCurrentRoadmapPhase(
+              userProfile.roadmapStartDate,
+              userProfile.roadmapDuration
+            );
+            phaseInfo = apiPayload.roadmap.find((p: any) => p.period === currentPhaseRange);
+          }
+          
+          prompt = PROMPTS.generate_challenges(userProfile, phaseInfo, analysis);
         }
         else if (apiAction === "review_code") prompt = PROMPTS.review_code(apiPayload.code, apiPayload.challengeContext, apiPayload.targetCriteriaIndices);
         else if (apiAction === "monthly_review") prompt = PROMPTS.monthly_review(apiPayload.profile, apiPayload.completedCount);

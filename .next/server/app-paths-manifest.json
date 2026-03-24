@@ -1,7 +1,9 @@
 {
   "/page": "app/page.js",
-  "/challenges/page": "app/challenges/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/api/gemini/route": "app/api/gemini/route.js",
+  "/review/page": "app/review/page.js",
   "/roadmap/page": "app/roadmap/page.js",
-  "/onboarding/page": "app/onboarding/page.js",
-  "/api/gemini/route": "app/api/gemini/route.js"
+  "/challenges/page": "app/challenges/page.js",
+  "/onboarding/page": "app/onboarding/page.js"
 }

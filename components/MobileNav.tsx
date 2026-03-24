@@ -10,7 +10,7 @@ export default function MobileNav() {
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/roadmap", label: "Roadmap", icon: Calendar },
-    { href: "/challenges", label: "Tasks", icon: CheckSquare },
+    { href: "/challenges", label: "課題 / Tasks", icon: CheckSquare },
     { href: "/history", label: "History", icon: Clock },
     { href: "/review", label: "Review", icon: Code },
     { href: "/analytics", label: "Analytics", icon: LineChart },

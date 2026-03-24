@@ -22,7 +22,7 @@ export default function Navigation() {
 
   const navItems = [
     { href: "/", icon: <Layout size={20} />, label: "ダッシュボード" },
-    { href: "/challenges", icon: <CheckSquare size={20} />, label: "週間チャレンジ" },
+    { href: "/challenges", icon: <CheckSquare size={20} />, label: "課題 / Task" },
     { href: "/roadmap", icon: <MapIcon size={20} />, label: "ロードマップ" },
     { href: "/history", icon: <History size={20} />, label: "レビュー履歴" },
     { href: "/monthly", icon: <Calendar size={20} />, label: "今月の振り返り" },

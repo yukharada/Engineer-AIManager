@@ -41,7 +41,7 @@ export default function Dashboard() {
         </div>
         <h2 className="text-3xl md:text-5xl font-black text-center mb-6 tracking-tighter italic font-jp">AIエンジニアマネージャーへようこそ</h2>
         <p className="text-slate-400 text-center mb-10 max-w-lg font-bold font-jp">
-          まずはあなたのスキルを診断し、パーソナライズされた36ヶ月の成長ロードマップを作成しましょう。
+          まずはあなたのスキルを診断し、パーソナライズされた目標期間に応じた成長ロードマップを作成しましょう。
         </p>
         <Link href="/onboarding" className="group relative px-10 py-5 bg-white text-black rounded-2xl font-black text-xl hover:bg-indigo-400 hover:text-white transition-all shadow-xl shadow-white/10 uppercase italic flex items-center gap-3 font-jp">
           診断を開始する <ArrowRight className="group-hover:translate-x-2 transition-transform" />
@@ -189,7 +189,7 @@ export default function Dashboard() {
                 </h3>
              </div>
              <div className="p-6 space-y-6">
-                {roadmap.length > 0 ? (
+                {Array.isArray(roadmap) && roadmap.length > 0 ? (
                   <>
                     <div className="space-y-4">
                        <span className="text-[10px] font-black text-indigo-400 border border-indigo-400/20 px-2 py-1 rounded bg-indigo-400/5 uppercase">{roadmap[0].period}</span>

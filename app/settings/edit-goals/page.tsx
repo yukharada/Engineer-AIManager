@@ -64,7 +64,7 @@ export default function EditGoalsPage() {
               <div className="flex items-start gap-3 bg-white/5 p-4 rounded-xl border border-white/5">
                  <Sparkles className="text-indigo-400 shrink-0 mt-0.5" size={14} />
                  <p className="text-[10px] text-slate-500 font-bold leading-relaxed italic">
-                   目標を変更すると、AIマネージャーが次回の週間チャレンジを生成する際の判断基準として反映されます。
+                   目標を変更すると、AIマネージャーが次回の課題を生成する際の判断基準として反映されます。
                  </p>
               </div>
            </div>

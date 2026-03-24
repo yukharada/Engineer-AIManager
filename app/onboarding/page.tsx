@@ -3,14 +3,15 @@
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
-import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2, ChevronRight, Info, AlertTriangle } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Target, Zap, Rocket, CheckCircle2, ChevronRight, Info, AlertTriangle, Calendar } from "lucide-react";
 import { createInitialSkillProgress } from "@/lib/types";
 import { getCurrentDateISO } from "@/lib/dateUtils";
-import { mapExperienceToLevel, initializeSkillProgress, getStageLabel } from "@/lib/levelMapping";
+import { mapExperienceToLevel, initializeSkillProgress, getStageLabel, mapLevelToExperience } from "@/lib/levelMapping";
 
 // Level definitions for tooltips
 const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
   frontend: {
+    0: 'HTMLもCSSも触ったことがない',
     1: 'HTML/CSS基礎。構造とスタイルの理解',
     2: '標準的な静的ページの作成経験',
     3: 'JS基礎。DOM操作や基本的なイベント処理',
@@ -23,6 +24,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: 'フロントエンドエキスパート。組織横断的な技術選定'
   },
   backend: {
+    0: 'APIやサーバーの概念が全くわからない',
     1: '学習中。APIの基本概念を理解',
     2: '簡単なCRUD操作ができる',
     3: 'REST API基礎。フレームワーク経験1年未満',
@@ -35,6 +37,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: '大規模システムの設計・運用のマスター'
   },
   infrastructure: {
+    0: 'Linuxやサーバーに触れたことがない',
     1: '基本概念。SSH接続やコマンド操作',
     2: 'クラウドコンソールでの手動構築',
     3: 'Docker基礎。Dockerfileの作成',
@@ -47,6 +50,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: 'プラットフォームエンジニアリングの熟達者'
   },
   database: {
+    0: 'SQLも何もわからない',
     1: 'SQL基礎。CRUDや基本的なJOIN',
     2: '簡単なテーブル設計と制約の理解',
     3: 'インデックス基礎。実行計画の初歩',
@@ -59,6 +63,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: 'DBスペシャリスト。DB自体の開発・貢献レベル'
   },
   systemDesign: {
+    0: 'アーキテクチャや設計パターンが全くわからない',
     1: '3層アーキテクチャ等の基本理解',
     2: 'SOLID原則の概念的な理解',
     3: 'デザインパターンの基礎適用',
@@ -71,6 +76,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: '最高技術責任者レベルの設計洞察'
   },
   devProcess: {
+    0: 'Gitも開発フローも全くわからない',
     1: 'Git基本操作。ブランチ、プルリク',
     2: 'コードレビューの受領・基本的な指摘',
     3: 'アジャイル・スクラムの基本用語理解',
@@ -83,6 +89,7 @@ const LEVEL_DEFINITIONS: Record<string, Record<number, string>> = {
     10: 'エンジニアリング組織全体を率いるマスター'
   },
   security: {
+    0: 'セキュリティの概念が全くわからない',
     1: '脆弱性の基本概念（XSS, SQLi）',
     2: 'HTTPSや暗号化の基礎知識',
     3: '認証・認可の標準的な実装',
@@ -113,15 +120,29 @@ export default function Onboarding() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [hoveredLevel, setHoveredLevel] = useState<{cat: string, lvl: number} | null>(null);
 
+  // --- Local state for Step 1 form (avoid re-rendering store on each keystroke) ---
+  const [localRole, setLocalRole] = useState(profile.role || '');
+  const [localTargetRole, setLocalTargetRole] = useState(profile.targetRole || '');
+  const [localGoals, setLocalGoals] = useState(profile.goals || '');
+  const [localExpYears, setLocalExpYears] = useState(profile.experienceYears || 1);
+  const [localDuration, setLocalDuration] = useState(profile.roadmapDuration || 12);
+
+  // Flush local step-1 state into the store and advance to step 2
+  const handleStep1Next = async () => {
+    const updated = { ...profile, role: localRole, targetRole: localTargetRole, goals: localGoals, experienceYears: localExpYears, roadmapDuration: localDuration };
+    await saveProfile(updated);
+    setStep(2);
+  };
+
   // Temporary flat levels for selection (converted to XP objects on finish)
   const [selectedLevels, setSelectedLevels] = useState<Record<string, number>>({
-    frontend: 1,
-    backend: 1,
-    infrastructure: 1,
-    systemDesign: 1,
-    database: 1,
-    security: 1,
-    devProcess: 1,
+    frontend: 0,
+    backend: 0,
+    infrastructure: 0,
+    systemDesign: 0,
+    database: 0,
+    security: 0,
+    devProcess: 0,
   });
 
   // Pre-fill skills if profile exists (re-diagnosis)
@@ -131,23 +152,24 @@ export default function Onboarding() {
       for (const cat in profile.skills) {
         if (cat in CATEGORY_LABELS) {
           const lvl = profile.skills[cat as keyof typeof profile.skills].level;
-          // Convert 100-scale level back to 1-10 scale for onboarding UI
-          skills[cat] = Math.max(1, Math.min(10, Math.floor(lvl / 10)));
+          skills[cat] = mapLevelToExperience(lvl);
         }
       }
       if (Object.keys(skills).length > 0) {
         setSelectedLevels(skills);
       }
+      // Also sync local state with existing profile
+      setLocalRole(profile.role || '');
+      setLocalTargetRole(profile.targetRole || '');
+      setLocalGoals(profile.goals || '');
+      setLocalExpYears(profile.experienceYears || 1);
+      setLocalDuration(profile.roadmapDuration || 12);
     }
-  }, [profile]);
-
-  const handleProfileChange = (field: string, value: any) => {
-    saveProfile({ ...profile, [field]: value });
-  };
+  }, [profile.role]);
 
   const handleFinishOnboarding = async (updatedProfile: any) => {
     await saveProfile(updatedProfile);
-    setStep(4); // Show summary screen
+    setStep(4);
   };
 
   const generateRoadmap = async () => {
@@ -194,7 +216,7 @@ export default function Onboarding() {
       const roadmapRes = await fetch("/api/gemini", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate_roadmap", payload: { profile: updatedProfile, months: 36 } }),
+        body: JSON.stringify({ action: "generate_roadmap", payload: { profile: updatedProfile, months: updatedProfile.roadmapDuration } }),
       });
       const roadmapData = await roadmapRes.json();
 
@@ -210,7 +232,8 @@ export default function Onboarding() {
         setApiStatus(roadmapData[0]?.isQuotaExceeded || false, roadmapData[0]?.retryAfter || null, true);
       }
 
-      await saveRoadmap(roadmapData);
+      const phases = roadmapData.phases || roadmapData;
+      await saveRoadmap(phases);
       handleFinishOnboarding(updatedProfile);
     } catch (e: any) {
       console.error("[Onboarding] Fatal Error:", e);
@@ -242,69 +265,111 @@ export default function Onboarding() {
         <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-600/5 blur-[100px] pointer-events-none" />
         
         {step === 1 && (
-          <div className="space-y-10 flex flex-col h-full animate-slide-up">
-            <div className="space-y-4">
+          <div className="space-y-8 flex flex-col h-full animate-slide-up">
+            {/* Current role */}
+            <div className="space-y-2">
               <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                <Target size={16} className="text-indigo-400" /> 現在のロール・目指している職種
+                <Target size={16} className="text-indigo-400" /> 現在のロール
               </label>
               <input
                 type="text"
-                placeholder="例: Senior Full-stack Engineer, Tech Lead"
+                placeholder="例: バックエンドエンジニア, Webエンジニア"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
-                value={profile.role}
-                onChange={(e) => handleProfileChange("role", e.target.value)}
+                value={localRole}
+                onChange={(e) => setLocalRole(e.target.value)}
+              />
+            </div>
+
+            {/* Target role */}
+            <div className="space-y-2">
+              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Rocket size={16} className="text-indigo-400" /> 目指しているロール
+              </label>
+              <input
+                type="text"
+                placeholder="例: Senior Full-stack Engineer, Tech Lead, SRE"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-5 text-lg font-bold text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                value={localTargetRole}
+                onChange={(e) => setLocalTargetRole(e.target.value)}
               />
               <p className="text-[10px] text-slate-500 font-bold italic">💡 ヒント: 具体的に書くと、より適切なロードマップが生成されます</p>
             </div>
 
-            <div className="space-y-6">
+            {/* Experience years */}
+            <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                   <Zap size={16} className="text-indigo-400" /> エンジニア経験年数
                 </label>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black text-white italic">{profile.experienceYears}</span>
+                  <span className="text-4xl font-black text-white italic">{localExpYears}</span>
                   <span className="text-xs font-black text-slate-500 uppercase">Years</span>
                 </div>
               </div>
-              
-              <div className="space-y-4">
-                <input
-                  type="range"
-                  min="1"
-                  max="30"
-                  step="1"
-                  value={profile.experienceYears || 1}
-                  onChange={(e) => handleProfileChange("experienceYears", parseInt(e.target.value))}
-                  className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                />
-                <div className="flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-tighter">
-                   <span>Junior (1y)</span>
-                   <span>Mid (5y)</span>
-                   <span>Senior (10y)</span>
-                   <span>Principal (20y)</span>
-                   <span>Legend (30y)</span>
-                </div>
+              <input
+                type="range"
+                min="1"
+                max="30"
+                step="1"
+                value={localExpYears}
+                onChange={(e) => setLocalExpYears(parseInt(e.target.value))}
+                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+              <div className="flex justify-between text-[10px] font-black text-slate-600 uppercase tracking-tighter">
+                 <span>Junior (1y)</span>
+                 <span>Mid (5y)</span>
+                 <span>Senior (10y)</span>
+                 <span>Principal (20y)</span>
+                 <span>Legend (30y)</span>
               </div>
             </div>
 
-            <div className="space-y-4 bg-indigo-500/[0.03] border border-indigo-500/10 p-6 rounded-3xl mt-4">
+            {/* Goals */}
+            <div className="space-y-2 bg-indigo-500/[0.03] border border-indigo-500/10 p-6 rounded-3xl">
               <label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                🎯 あなたの目標（短期〜中期）
+                🎯 あなたの成長目標（短期〜中期）
               </label>
               <textarea
                 placeholder="例: マイクロサービスアーキテクチャの習得、AWS上でのIaC自動化の実践。また、チーム開発での技術的負債の解消を主導できるようになりたい。"
-                className="w-full h-32 bg-transparent text-lg font-bold text-white focus:outline-none transition-all resize-none scrollbar-hide"
-                value={profile.goals}
-                onChange={(e) => handleProfileChange("goals", e.target.value)}
+                className="w-full h-28 bg-transparent text-base font-bold text-white focus:outline-none transition-all resize-none scrollbar-hide mt-2"
+                value={localGoals}
+                onChange={(e) => setLocalGoals(e.target.value)}
               />
               <p className="text-[10px] text-slate-600 font-bold italic">💡 ヒント: 複数の目標を書いてOKです。具体的であるほどAIの精度が上がります</p>
             </div>
 
-            <div className="mt-auto pt-10">
+            {/* Duration */}
+            <div className="space-y-4">
+              <label className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                <Calendar className="text-indigo-400" size={16} /> 学習計画の期間を選択
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                {[3, 6, 12, 18, 24, 36].map(months => (
+                  <button
+                    key={months}
+                    type="button"
+                    onClick={() => setLocalDuration(months)}
+                    className={`
+                      h-16 rounded-2xl font-black transition-all border italic
+                      ${localDuration === months
+                        ? 'bg-indigo-600 text-white border-indigo-400 scale-105 shadow-lg shadow-indigo-600/30'
+                        : 'bg-white/5 text-slate-500 border-white/5 hover:bg-white/10 hover:text-slate-400'
+                      }
+                    `}
+                  >
+                    {months}ヶ月
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-600 font-bold italic text-center">
+                💡 目安: 短期集中なら3-6ヶ月、じっくり学ぶなら12-36ヶ月
+              </p>
+            </div>
+
+            <div className="mt-auto pt-6">
               <button
-                disabled={!profile.role || !profile.goals || profile.experienceYears === 0}
-                onClick={() => setStep(2)}
+                disabled={!localRole || !localGoals || localExpYears === 0}
+                onClick={handleStep1Next}
                 className="w-full py-5 bg-white text-black hover:bg-slate-200 disabled:opacity-20 rounded-2xl font-black text-xl transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-3 italic font-jp"
               >
                 自己診断へ進む <ArrowRight size={24} />
@@ -318,7 +383,7 @@ export default function Onboarding() {
             <div className="space-y-4">
               <h2 className="text-2xl font-black italic text-white font-jp uppercase">現在の経験度を選択してください</h2>
               <p className="text-slate-400 font-bold font-jp leading-relaxed">
-                各技術の実務経験や習熟度を1-10で評価してください。<br />
+                各技術の実務経験や習熟度を 0-10 で評価してください。<br />
                 これを元に、あなたに最適なレベルからスタートします。
               </p>
             </div>
@@ -328,6 +393,7 @@ export default function Onboarding() {
                   <Info size={16} /> 経験度の目安
                </div>
                <div className="space-y-3 text-sm font-bold text-slate-400 leading-relaxed">
+                  <p>0: 未経験 → <span className="text-slate-300">Lv.1</span> からスタート</p>
                   <p>1-3: 学習中・入門レベル → <span className="text-indigo-300">Lv.1-30</span> からスタート</p>
                   <p>4-7: 実務経験あり・中級 → <span className="text-indigo-300">Lv.31-70</span> からスタート</p>
                   <p>8-10: エキスパート・上級 → <span className="text-indigo-300">Lv.71-95</span> からスタート</p>
@@ -345,12 +411,12 @@ export default function Onboarding() {
                         {CATEGORY_LABELS[cat]}
                       </h3>
                       <div className="text-right">
-                         <div className="text-3xl font-black text-indigo-400 italic">Lv.{selectedLevels[cat]}</div>
+                         <div className="text-3xl font-black text-indigo-400 italic">{selectedLevels[cat] === 0 ? 'Lv.0 (未経験)' : `Lv.${selectedLevels[cat]}`}</div>
                          <div className="text-[10px] font-black text-slate-500 max-w-[200px] line-clamp-1 italic">{LEVEL_DEFINITIONS[cat][selectedLevels[cat]]}</div>
                       </div>
                    </div>
 
-                   <div className="grid grid-cols-5 md:grid-cols-10 gap-2 relative">
+                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-11 gap-2 relative">
                       {/* Tooltip Overlay */}
                       {hoveredLevel && hoveredLevel.cat === cat && (
                         <div className="absolute -top-14 left-0 right-0 z-10 animate-fade-in pointer-events-none flex justify-center">
@@ -363,7 +429,7 @@ export default function Onboarding() {
                         </div>
                       )}
 
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(lvl => (
+                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(lvl => (
                         <button
                           key={lvl}
                           onClick={() => setSelectedLevels(prev => ({ ...prev, [cat]: lvl }))}
@@ -429,12 +495,12 @@ export default function Onboarding() {
                </div>
             </div>
             
-            <div className="text-center space-y-4 max-w-sm">
-               <h2 className="text-3xl font-black font-jp tracking-tight">成長戦略を構築しています</h2>
-               <p className="text-slate-500 font-bold leading-relaxed font-jp">
-                  AIマネージャーがあなたのプロフィールを分析領域ごとにマッピングし、最適な36ヶ月のロードマップを個別生成しています。
-               </p>
-            </div>
+             <div className="text-center space-y-4 max-w-sm">
+                <h2 className="text-3xl font-black font-jp tracking-tight">成長戦略を構築しています</h2>
+                <p className="text-slate-500 font-bold leading-relaxed font-jp">
+                   AIマネージャーがあなたのプロフィールを分析領域ごとにマッピングし、最適な{profile.roadmapDuration}ヶ月のロードマップを個別生成しています。
+                </p>
+             </div>
 
             {apiStatus.isQuotaExceeded && (
               <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl w-full text-center space-y-3">

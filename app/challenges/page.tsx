@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import Link from "next/link";
-import { CheckSquare, Loader2, Zap, CheckCircle2, GitPullRequest, ArrowRight, TrendingUp, Calendar, AlertCircle } from "lucide-react";
-import { getCurrentDateISO, getChallengeDeadline, formatRelativeTime, isOverdue } from "@/lib/dateUtils";
+import { CheckSquare, Loader2, Zap, CheckCircle2, GitPullRequest, ArrowRight, TrendingUp, Calendar, AlertCircle, Target } from "lucide-react";
+import { getCurrentDateISO, getChallengeDeadline, formatRelativeTime, isOverdue, getCurrentRoadmapPhase } from "@/lib/dateUtils";
 
 const getCategoryLabel = (cat: string) => {
   const map: Record<string, string> = { frontend: "フロントエンド", backend: "バックエンド", infrastructure: "インフラ", systemDesign: "システム設計", database: "DB", security: "セキュリティ", devProcess: "開発プロセス" };
@@ -20,7 +20,7 @@ function generateUUID() {
 }
 
 export default function Challenges() {
-  const { profile, challenges, saveChallenges, reviewHistory, apiStatus, setApiStatus } = useStore();
+  const { profile, roadmap, challenges, saveChallenges, reviewHistory, apiStatus, setApiStatus } = useStore();
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleGenerate = async () => {
@@ -31,7 +31,7 @@ export default function Challenges() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           action: "generate_challenges", 
-          payload: { profile, reviewHistory } 
+          payload: { profile, roadmap, reviewHistory } 
         }),
       });
       const data = await res.json();
@@ -49,15 +49,31 @@ export default function Challenges() {
         setApiStatus(first?.isQuotaExceeded || false, first?.retryAfter || null, true);
       }
 
+      // Normalize: API can return a single object, an array, or { challenges: [...] }
+      let rawChallenges: any[] = [];
       if (Array.isArray(data)) {
+        rawChallenges = data;
+      } else if (data && Array.isArray(data.challenges)) {
+        rawChallenges = data.challenges;
+      } else if (data && data.title) {
+        // Single challenge object
+        rawChallenges = [data];
+      }
+
+      if (rawChallenges.length > 0) {
         const now = getCurrentDateISO();
-        const challengesWithDates = data.map((c: any) => ({
+        const challengesWithDates = rawChallenges.map((c: any) => ({
           ...c,
           id: generateUUID(),
           createdAt: now,
           deadline: getChallengeDeadline(now, 7),
+          completed: c.completed ?? false,
+          completedCriteria: c.completedCriteria ?? {},
+          gainedSkills: c.gainedSkills ?? [],
+          acceptanceCriteria: c.acceptanceCriteria ?? [],
+          phase: getCurrentRoadmapPhase(profile.roadmapStartDate, profile.roadmapDuration)
         }));
-        saveChallenges(challengesWithDates);
+        await saveChallenges(challengesWithDates);
       }
     } catch (e: any) {
       console.error(e);
@@ -93,7 +109,7 @@ export default function Challenges() {
       <div className="flex flex-col md:flex-row md:items-end justify-between border-b border-white/10 pb-6 gap-6">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black mb-2 flex items-center gap-3">
-             <CheckSquare size={32} className="text-indigo-400" /> 週間チャレンジ
+             <CheckSquare size={32} className="text-indigo-400" /> 課題 / TASK
           </h1>
           <p className="text-slate-400 font-bold">あなたの弱点とロードマップに基づいた実践課題。</p>
         </div>
@@ -103,15 +119,64 @@ export default function Challenges() {
           className="w-full md:w-auto bg-white text-black hover:bg-slate-200 disabled:opacity-50 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-[0_0_20px_rgba(255,255,255,0.2)] font-jp disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
         >
           {isGenerating ? <Loader2 className="animate-spin" size={20} /> : <Zap size={20} />}
-          {apiStatus.isQuotaExceeded ? "制限中" : (challenges.length > 0 ? "課題を再生成" : "課題を取得")}
+          {apiStatus.isQuotaExceeded ? "制限中" : (challenges.length > 0 ? "課題を再生成" : "課題を生成")}
         </button>
       </div>
+
+      {/* Current Phase Info */}
+      {(() => {
+        const currentPhaseRange = getCurrentRoadmapPhase(profile.roadmapStartDate, profile.roadmapDuration);
+        const currentPhase = Array.isArray(roadmap) ? roadmap.find(p => p.period === currentPhaseRange) : null;
+        if (!currentPhase) return null;
+        
+        return (
+          <div className="bg-indigo-500/5 border border-indigo-500/10 rounded-3xl p-6 sm:p-8 animate-slide-up">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em]">Current Roadmap Phase</span>
+                <h2 className="text-2xl font-black">{currentPhase.period}「{currentPhase.focus}」</h2>
+              </div>
+              <div className="bg-indigo-600/20 border border-indigo-500/30 px-4 py-2 rounded-xl">
+                 <span className="text-sm font-black text-indigo-300 italic">ロードマップ連動中</span>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="space-y-3">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                     <TrendingUp size={14} className="text-indigo-400" /> 重点技術
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                     {currentPhase.focusAreas?.map((area, i) => (
+                       <span key={i} className="px-3 py-1 bg-white/5 border border-white/10 rounded-lg text-sm font-bold text-slate-300">
+                         {area}
+                       </span>
+                     ))}
+                  </div>
+               </div>
+               <div className="space-y-3">
+                  <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                     <Target size={14} className="text-indigo-400" /> 今フェーズの目標
+                  </h3>
+                  <ul className="space-y-2">
+                     {currentPhase.goals?.map((goal, i) => (
+                       <li key={i} className="text-sm font-bold text-slate-400 flex items-start gap-3">
+                          <CheckCircle2 size={14} className="text-indigo-500 shrink-0 mt-1" />
+                          {goal}
+                       </li>
+                     ))}
+                  </ul>
+               </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {challenges.length === 0 && !isGenerating && (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center glass-card border-dashed">
           <CheckSquare size={48} className="text-slate-600 mb-4" />
           <h3 className="text-2xl font-bold text-slate-300 mb-2">アクティブな課題はありません</h3>
-          <p className="text-slate-500 max-w-sm">「課題を取得」をクリックして、新しいコーディングチャレンジを始めましょう。</p>
+          <p className="text-slate-500 max-w-sm">「課題を生成」をクリックして、新しいコーディングチャレンジを始めましょう。</p>
         </div>
       )}
 
